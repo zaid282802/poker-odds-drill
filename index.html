@@ -151,7 +151,7 @@ pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.5}
    Poker Odds Drill - engine
    Cards are ints 0..51:  rank = c>>2  (0=deuce .. 12=ace),  suit = c&3
    ============================================================ */
-var VERSION = '0.1.0';
+var VERSION = '0.2.0';
 var RANKS = '23456789TJQKA';
 var SUITS = ['♠','♥','♦','♣'];   // s h d c ; 1 and 2 are red
 
@@ -407,6 +407,49 @@ function rangeCombos(topPct,dead){
   }
   return out;
 }
+/* Explicit range notation, so a range can be a named set rather than "top X%":
+     "QQ+"    QQ, KK, AA
+     "AK"     AKs and AKo
+     "AJs+"   AJs, AQs, AKs
+     "76s"    just that one
+   Needed for value-to-bluff counting, where the range is polarised, not a top slice. */
+function expandToken(tok){
+  var plus=tok.charAt(tok.length-1)==='+';
+  if(plus) tok=tok.slice(0,-1);
+  var a=RANKS.indexOf(tok.charAt(0).toUpperCase()),
+      b=RANKS.indexOf(tok.charAt(1).toUpperCase()),
+      sfx=tok.length>2?tok.charAt(2).toLowerCase():'',labs=[],r,t;
+  if(a<0||b<0) return labs;
+  if(a<b){ t=a; a=b; b=t; }
+  if(a===b){
+    if(plus){ for(r=a;r<=12;r++) labs.push(RANKS[r]+RANKS[r]); }
+    else labs.push(RANKS[a]+RANKS[a]);
+    return labs;
+  }
+  var pairsList=[];
+  if(plus){ for(r=b;r<a;r++) pairsList.push(r); }   // kicker climbs to just under the top card
+  else pairsList.push(b);
+  for(t=0;t<pairsList.length;t++){
+    r=pairsList[t];
+    if(sfx==='s'||sfx==='o') labs.push(RANKS[a]+RANKS[r]+sfx);
+    else { labs.push(RANKS[a]+RANKS[r]+'s'); labs.push(RANKS[a]+RANKS[r]+'o'); }
+  }
+  return labs;
+}
+function expandRange(str){
+  var parts=String(str).split(','),seen={},labs=[],i,j,e;
+  for(i=0;i<parts.length;i++){
+    e=expandToken(parts[i].trim());
+    for(j=0;j<e.length;j++) if(!seen[e[j]]){ seen[e[j]]=1; labs.push(e[j]); }
+  }
+  return labs;
+}
+function parseRange(str,dead){
+  var labs=expandRange(str),out=[],i;
+  for(i=0;i<labs.length;i++) out=out.concat(classCombos(labs[i],dead));
+  return out;
+}
+
 /* the class at the boundary, for describing a range to the user */
 function rangeEdge(topPct){
   var target=1326*topPct/100,cum=0,i,lab;
@@ -575,7 +618,8 @@ outs:{
     else s+='Here the two happen to agree.';
     s+='<br><span class="dim">U counts villain’s two cards as seen. The textbook rule assumes U=47, villain unknown, about 1.4 points higher on a flush draw.</span>';
     return s;
-  }
+  },
+  bucket:function(st){ var o=st.outs.length; return o<=4?'2-4':o<=8?'5-8':o<=12?'9-12':'13-15'; }
 },
 
 potodds:{
@@ -597,7 +641,8 @@ potodds:{
     s+='<br>By bet size: ⅓ pot 20% · ½ 25% · ⅔ 28.6% · ¾ 30% · pot 33.3% · 1.5x 37.5% · 2x 40%.';
     s+='<br><span class="dim">Same number, other seat: this is also the share of his betting range that should be bluffs at equilibrium.</span>';
     return s;
-  }
+  },
+  bucket:function(st){ var r=st.b/st.P; return r<=0.4?'small':r<=0.75?'mid':r<=1.1?'pot':'over'; }
 },
 
 combos:{
@@ -643,7 +688,8 @@ combos:{
     s+='<br>Hold cold: <b>pair 6</b> · <b>any suit 16</b> · <b>offsuit 12</b> · <b>suited 4</b>.';
     s+='<br><span class="dim">Why it matters: if he needs 30% bluffs and has 12 value combos, he needs about 5 bluff combos. Counting them is how you know whether he is bluffing enough.</span>';
     return s;
-  }
+  },
+  bucket:function(st){ return st.a===st.b?'pair':st.suited===1?'suited':'offsuit'; }
 },
 
 equity:{
@@ -689,7 +735,8 @@ equity:{
     }
     s+='<br><span class="dim">The range is the strongest X% of all 1326 combos, ordered by equity against a random hand, with your cards and the board removed. Real opening charts differ a little because they also price in position and playability.</span>';
     return s;
-  }
+  },
+  bucket:function(st){ return 'nv'+st.nv+(st.board.length?'-flop':'-pre'); }
 },
 
 callfold:{
@@ -727,7 +774,80 @@ callfold:{
     s+='<code>EV(call) = E(P+b) − (1−E)b</code> = '+one(ev)+' chips'+(ev>0?'':' (negative, hence the fold)')+'.';
     s+='<br><span class="dim">You are not graded on the EV in chips. That needs equity to a point or two, which nobody does mentally. The side of the threshold is the decision, and it is robust to a sloppy estimate.</span>';
     return s;
-  }
+  },
+  bucket:function(st){ return st.eq.eq>st.req?'call':'fold'; }
+},
+
+polar:{
+  name:'Value, bluffs and the river call',
+  about:{
+    goal:'Decide whether villain is bluffing enough to justify a call, by counting his combos rather than guessing at his soul. This is the question a quant interviewer actually asks.',
+    how:'His range is named. On the final board, split it into combos that beat you and combos you beat. A balanced bettor bluffs <code>b/(P+2b)</code> of his betting range. If his real bluff share is higher he is over-bluffing, so call; lower and he is under-bluffing, so fold. Your own cards remove combos from his range, which is what a blocker is.',
+    example:'He bets pot with {AK, KQ, 77, 76s}. Say that leaves 8 value combos and 3 bluffs, so 3/11 = 27% bluffs. A pot bet needs 33% to make your call break even, so he is under-bluffing and you fold.'
+  },
+  generate:function(rng){
+    for(var tries=0;tries<4000;tries++){
+      var d=dealDistinct(rng,7,[]);
+      var hero=d.slice(0,2),board=d.slice(2);
+      var boardRanks=[],i;
+      for(i=0;i<board.length;i++) if(boardRanks.indexOf(board[i]>>2)<0) boardRanks.push(board[i]>>2);
+
+      // a plausible polarised range: some board pairs, an underpair, broadway, a busted draw
+      var toks=[],pick=function(a){ return a[(rng()*a.length)|0]; };
+      toks.push(RANKS[pick(boardRanks)]+RANKS[pick(boardRanks)]);          // a set
+      var lowR=(rng()*9)|0;
+      toks.push(RANKS[lowR]+RANKS[lowR]);                                   // an underpair
+      toks.push(pick(['AK','AQ','KQ','AJ','KJ']));                          // broadway
+      toks.push(pick(['76s','87s','65s','98s','54s','T9s','J9s']));         // a busted draw
+      if(rng()<0.5) toks.push(pick(['A5s','A4s','KTs','QTs']));
+      var spec=toks.join(', ');
+
+      var dead=hero.concat(board);
+      var combos=parseRange(spec,dead);
+      if(combos.length<8) continue;
+
+      var hs=evalCards(_hb,fill(_hb,hero,board));
+      var val=0,blf=0,tie=0,vs;
+      for(i=0;i<combos.length;i++){
+        vs=evalCards(_vb,fill(_vb,combos[i],board));
+        if(vs>hs) val++; else if(vs<hs) blf++; else tie++;
+      }
+      if(val<3||blf<3) continue;
+      var eq=(blf+tie/2)/combos.length;
+      if(eq<0.12||eq>0.88) continue;
+
+      var P=pickPot(rng),bt=pickBet(rng,P),req=reqEquity(P,bt.b);
+      if(Math.abs(eq-req)<0.04) continue;                                   // keep the decision clear
+      return {hero:hero,board:board,spec:spec,val:val,blf:blf,tie:tie,tot:combos.length,
+              eq:{eq:eq,win:blf,tie:tie,lose:val,n:combos.length,method:'exact',se:0},
+              eqv:eq,P:P,b:bt.b,label:bt.label,req:req,
+              bluffShareReal:blf/(val+blf),bluffShareBal:bluffShare(P,bt.b)};
+    }
+    return null;
+  },
+  questions:function(st){
+    return [
+      {prompt:'How many combos of his range beat you?',kind:'int',answer:st.val,tol:0,unit:''},
+      {prompt:'He bets. Call or fold?',kind:'choice',choices:['Call','Fold'],
+       answer:st.eqv>st.req?'Call':'Fold',tol:0,unit:''}
+    ];
+  },
+  explain:function(st){
+    var over=st.bluffShareReal>st.bluffShareBal;
+    var s='Range <code>'+st.spec+'</code> leaves <b>'+st.tot+'</b> combos after your cards and the board are removed: ';
+    s+='<b>'+st.val+'</b> beat you, <b>'+st.blf+'</b> you beat'+(st.tie?', '+st.tie+' chop':'')+'.<br>';
+    s+='His real bluff share is <code>'+st.blf+'/'+(st.val+st.blf)+' = <b>'+one(st.bluffShareReal*100)+'%</b></code>. ';
+    s+='A balanced bettor at this size bluffs <code>b/(P+2b) = '+one(st.bluffShareBal*100)+'%</code>. ';
+    s+='So he is <b>'+(over?'over':'under')+'-bluffing</b>.<br>';
+    s+='Your equity <b>'+one(st.eqv*100)+'%</b> against required <b>'+one(st.req*100)+'%</b>, hence <b>'+
+       (st.eqv>st.req?'call':'fold')+'</b>.';
+    s+='<br><span class="dim">The two tests agree by construction, and that is the point: "is he bluffing enough" and '+
+       '"does my equity beat the price" are the same question asked from the two seats.</span>';
+    s+='<br><br><b>Blockers.</b> Your '+st.hero.map(cardStr).join(' and ')+
+       ' removed combos from his range before you counted. Holding one of his value cards is worth more than holding one of his bluff cards, because it takes weight off the half of his range you cannot beat.';
+    return s;
+  },
+  bucket:function(st){ return st.bluffShareReal>st.bluffShareBal?'over':'under'; }
 },
 
 bluff:{
@@ -755,7 +875,8 @@ bluff:{
     s+='<b>The identity:</b> your bluff share equals his required equity to call. One number, both seats.';
     s+='<br><span class="dim">MDF is the bound for a bluff with no equity. Real equilibria defend a little less, because a check still has value. The [0,1] toy game gives 4/9 against a pot bet, not 1/2.</span>';
     return s;
-  }
+  },
+  bucket:function(st){ var r=st.b/st.P; return r<=0.4?'small':r<=0.75?'mid':r<=1.1?'pot':'over'; }
 },
 
 market:{
@@ -792,7 +913,8 @@ market:{
     s+='Over '+MAX_WIDTH+' points wide scores as no information.';
     s+='<br><span class="dim">On a desk the same trade-off is priced every second: quote tight and win flow but get picked off by anyone better informed, quote wide and never trade. Master Textbook Ch. 51.3.</span>';
     return s;
-  }
+  },
+  bucket:function(st){ return st.board.length?'flop':'preflop'; }
 }
 
 };
@@ -818,13 +940,38 @@ function markSeen(id){
     if(a.indexOf(id)<0){ a.push(id); localStorage.setItem(AKEY,a.join(',')); }
   }catch(e){}
 }
-function record(id,ok,secs){
-  var s=loadStats(),r=s[id]||{n:0,c:0,last:'',streak:0,best:0,tsum:0,tn:0};
+function record(id,ok,secs,bucket){
+  var s=loadStats(),r=s[id]||{n:0,c:0,last:'',streak:0,best:0,tsum:0,tn:0,buckets:{}};
   r.n++; if(ok){ r.c++; r.streak++; if(r.streak>r.best) r.best=r.streak; } else r.streak=0;
   r.last=(r.last+(ok?'1':'0')).slice(-20);
   if(secs>0&&secs<600){ r.tsum=(r.tsum||0)+secs; r.tn=(r.tn||0)+1; }
+  if(bucket){
+    r.buckets=r.buckets||{};
+    var b=r.buckets[bucket]||{n:0,c:0};
+    b.n++; if(ok) b.c++;
+    r.buckets[bucket]=b;
+  }
   s[id]=r; saveStats(s);
 }
+/* what the adaptive picker is currently steering you toward */
+function weakestHtml(st){
+  var rows=[],ids=Object.keys(DRILLS),i,k,b,r;
+  for(i=0;i<ids.length;i++){
+    r=st[ids[i]];
+    if(!r||!r.buckets) continue;
+    for(k in r.buckets){
+      b=r.buckets[k];
+      if(b.n>=3) rows.push([b.c/b.n,DRILLS[ids[i]].name,k,b.c,b.n]);
+    }
+  }
+  if(!rows.length) return '<div class="barkey" style="margin-top:10px">Answer a few more and the picker will start steering you toward your weak spots.</div>';
+  rows.sort(function(a,b2){ return a[0]-b2[0]; });
+  return '<div class="barkey" style="margin-top:12px">weakest archetypes, which get dealt more often</div>'+
+    '<table><tbody>'+rows.slice(0,4).map(function(x){
+      return '<tr><td>'+x[1]+'</td><td class="dim">'+x[2]+'</td><td>'+Math.round(100*x[0])+'%</td><td class="dim">'+x[3]+'/'+x[4]+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
 function renderStats(){
   var s=loadStats(),rows='',ids=Object.keys(DRILLS),i,r,l20,avg;
   for(i=0;i<ids.length;i++){
@@ -838,6 +985,7 @@ function renderStats(){
   $('stats').innerHTML=
     '<table><thead><tr><th>Drill</th><th>n</th><th>acc</th><th>last 20</th><th>time</th><th>streak</th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table>'+
+    weakestHtml(s)+
     '<button class="ghost" id="reset" style="margin-top:10px">Reset stats</button>'+
     '<div class="ver">v'+VERSION+'</div>';
   $('reset').onclick=function(){
@@ -861,9 +1009,34 @@ function showAbout(on){
   el.className='on';
 }
 
+/* how many candidate spots to deal before choosing, per drill.
+   Slow drills get fewer because each deal costs a Monte Carlo run. */
+var CANDIDATES={potodds:4,bluff:4,combos:4,outs:3,polar:3,callfold:2,equity:2,market:2};
+
+function bucketAcc(id,key){
+  var r=loadStats()[id];
+  if(!r||!r.buckets||!r.buckets[key]) return -1;          // never seen, so highest priority
+  var b=r.buckets[key];
+  return b.n<3 ? -1 : b.c/b.n;                            // too few reps to judge
+}
+/* Deal a few spots and keep the one whose archetype you are worst at.
+   Spaced repetition on structural buckets, not on specific card instances. */
+function pickSpot(d){
+  var n=CANDIDATES[S.id]||2,best=null,bestAcc=2,i,st,acc;
+  for(i=0;i<n;i++){
+    st=d.generate(rng);
+    if(!st) continue;
+    if(!d.bucket){ return st; }
+    acc=bucketAcc(S.id,d.bucket(st));
+    if(acc<bestAcc){ bestAcc=acc; best=st; }
+    if(bestAcc<0) break;                                   // an unseen bucket wins outright
+  }
+  return best;
+}
+
 function nextHand(){
   var d=DRILLS[S.id];
-  var st=d.generate(rng);
+  var st=pickSpot(d);
   if(!st){ $('situation').innerHTML='<div class="lbl">could not deal a spot, try again</div>'; return; }
   S.st=st; S.qs=d.questions(st); S.qi=0;
   S.typed=''; S.choice=null; S.mkt={bid:'',ask:'',side:'bid'}; S.phase='ask';
@@ -939,7 +1112,8 @@ function gradeNow(){
     user=parseInt(S.typed,10); if(isNaN(user)) return;
     ok=Math.abs(user-q.answer)<=q.tol;
   }
-  record(S.id,ok,S.secs);
+  var d=DRILLS[S.id];
+  record(S.id,ok,S.secs,d.bucket?d.bucket(S.st):null);
 
   var tgt=TARGETS[S.id]||15,slow=S.secs>tgt;
   var h='<div class="row">you <b>'+user+(q.kind==='int'?q.unit:'')+'</b>';

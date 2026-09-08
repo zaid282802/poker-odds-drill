@@ -14,7 +14,7 @@ Add it to your home screen and it works offline. Nothing to run, nothing to inst
 The theory behind every drill is in `Poker_Math_Study_Guide.pdf`
 (`MQF/cerificate & resume/study-guides/`).
 
-## The seven drills
+## The eight drills
 
 | Drill | Target | You answer | Graded against |
 |---|---|---|---|
@@ -23,8 +23,14 @@ The theory behind every drill is in `Poker_Math_Study_Guide.pdf`
 | Combo counting and blockers | 12s | how many combos of a hand villain can hold | exact, after card removal |
 | Equity against a range | 15s | your equity vs 1 to 3 hidden opponents | Monte Carlo over the whole range |
 | Call or fold against a range | 12s | Call or Fold | `E > b/(P+2b)` |
+| Value, bluffs and the river call | 18s | how many combos beat you, then Call or Fold | exact combo count after blockers |
 | Bluff frequency and MDF | 10s | bluff share of your range, then his MDF | `b/(P+2b)`; `P/(P+b)` |
 | Make a market on equity | 20s | a bid and an ask | onside, and no wider than 12 points |
+
+The drills also **adapt**. Each one tags its spots by archetype (out count band, bet size band,
+opponent count, over versus under-bluffing), tracks your accuracy per archetype, and then deals more
+of whatever you are worst at. The stats panel shows which archetypes it is currently steering you
+toward. This is spaced repetition on structure rather than on specific hands.
 
 Each drill has a **?** button explaining what it trains, how the method works, and a worked example.
 It opens automatically the first time you pick a drill.
@@ -34,10 +40,14 @@ Speed is the point: an interviewer wants the number in a few seconds, not a deri
 
 ## Villain is hidden, except in one drill
 
-In real poker you never see villain's cards, so six of the seven drills describe villain as a
+In real poker you never see villain's cards, so seven of the eight drills describe villain as a
 **range** ("top 15%, down to A8o") and compute your equity against every hand in it, weighted by how
 many combos of each he can hold. Ranges also support **two or three opponents at once**, which
-matters more than people expect: a hand worth 66% heads-up is often near 35% against three.
+matters more than people expect: A♠K♠ is 66.7% against one top-30% range and 34.9% against three.
+
+Ranges can also be named explicitly, as in `{QQ+, AK, 76s}`. The value-and-bluffs drill uses that to
+give villain a polarised range, then asks you to count how many of his combos beat you after your
+own cards have removed some, which is what a blocker actually is.
 
 The outs drill is the exception and shows villain's hand face-up, on purpose. You cannot tell which
 of your outs are dead without knowing what beats you, and spotting dead outs is the entire skill
@@ -71,7 +81,7 @@ with no network. Use the link.
 ## Tests
 
 ```powershell
-node test/node_test.js            # 89 checks, about 2 seconds
+node test/node_test.js            # 109 checks, about 3 seconds
 node test/node_test.js --seven    # adds the full C(52,7) sweep, about 20 seconds
 node test/static_check.js         # syntax, DOM refs, house rules
 ```
@@ -91,6 +101,9 @@ What it proves:
 - Combo counting: pair 6, any-suit 16, offsuit 12, suited 4, and correct under card removal.
 - **The heuristic the app teaches passes the app's own grading at least 90% of the time.** This is a
   regression guard, not a formality; see below.
+- Range notation parses correctly (`QQ+`, `AK`, `AJs+`, comma lists, blockers) and the `polar` drill's
+  combo counts, equity and decision are mutually consistent over 150 generated spots, with
+  over-bluffing always implying a call.
 
 In the browser, `?test=1` runs an on-device version that also reports speed on your actual phone:
 <https://zaid282802.github.io/poker-odds-drill/?test=1>. Worth running once on the phone.

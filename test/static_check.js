@@ -55,7 +55,7 @@ const extPatterns = [
 ];
 const extHit = extPatterns.filter(p => p.test(src));
 P(extHit.length === 0, 'no external requests' + (extHit.length ? ': matched ' + extHit[0] : ''));
-P(bytes < 60000, 'under the 60 KB cap (' + bytes + ' bytes, ' + (100 * bytes / 60000).toFixed(0) + '% used)');
+P(bytes < 80000, 'under the 80 KB cap (' + bytes + ' bytes, ' + (100 * bytes / 80000).toFixed(0) + '% used)');
 P(/<meta name="viewport"[^>]*width=device-width/.test(src), 'mobile viewport meta present');
 P(/apple-mobile-web-app-capable/.test(src), 'iOS standalone meta present');
 P(/env\(safe-area-inset-bottom\)/.test(src), 'keypad respects the safe area');

@@ -25,7 +25,8 @@ const EXPORTS = ['buildTables', 'evalCards', 'countOuts', 'enumerateEq', 'mcEq',
                  'mulberry32', 'seedFrom', 'cardStr', 'catOf', 'ahead',
                  'reqEquity', 'mdf', 'alpha', 'bluffShare', 'evCall', 'RANKS', 'SUITS', 'VERSION',
                  'DRILLS', 'dealDistinct', 'pickPot', 'pickBet',
-                 'CLASS_ORDER', 'rangeCombos', 'rangeEdge', 'classCombos', 'eqVsRanges', 'comboCount'];
+                 'CLASS_ORDER', 'rangeCombos', 'rangeEdge', 'classCombos', 'eqVsRanges', 'comboCount',
+                 'expandRange', 'parseRange', 'expandToken', 'deadOuts'];
 const TMP = path.join(__dirname, '.engine.gen.js');
 fs.writeFileSync(TMP, m[1] + '\n' + drillsBlock[1] + '\nmodule.exports={' + EXPORTS.join(',') + '};\n');
 process.on('exit', () => { try { fs.unlinkSync(TMP); } catch (e) {} });
@@ -297,6 +298,7 @@ console.log('\n--- every drill generates, asks and explains (200 hands each) ---
   }
   t('callfold: one question, decision and EV sign agree, no knife-edge spots', okCF, cfNote);
 
+
   // ranges
   {
     const dead = [];
@@ -346,6 +348,85 @@ console.log('\n--- every drill generates, asks and explains (200 hands each) ---
     t('a rank fully on board gives 0 combos of that pair', comboCount(R('K'), R('K'), 2, H('Ks Kh Kd Kc')) === 0);
   }
 }
+
+  // explicit range notation
+  {
+    const eq2 = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    t('QQ+ expands to QQ KK AA', eq2(E.expandRange('QQ+'), ['QQ', 'KK', 'AA']));
+    t('AK expands to both suited and offsuit', eq2(E.expandRange('AK'), ['AKs', 'AKo']));
+    t('AJs+ expands to AJs AQs AKs', eq2(E.expandRange('AJs+'), ['AJs', 'AQs', 'AKs']));
+    t('KTo+ expands to KTo KJo KQo', eq2(E.expandRange('KTo+'), ['KTo', 'KJo', 'KQo']));
+    t('76s expands to itself', eq2(E.expandRange('76s'), ['76s']));
+    t('a comma list unions and dedupes', eq2(E.expandRange('QQ+, AK, QQ'), ['QQ', 'KK', 'AA', 'AKs', 'AKo']));
+    t('rank order does not matter', eq2(E.expandRange('KA'), E.expandRange('AK')));
+    t('garbage tokens are ignored', E.expandRange('zz, AK').join(' ') === 'AKs AKo');
+    t('QQ+ is 18 combos unblocked', E.parseRange('QQ+', []).length === 18);
+    // Qs and Qh gone leaves only QdQc for the queens: C(2,2) + 6 + 6 = 13
+    t('QQ+ with two queens gone is 13', E.parseRange('QQ+', H('Qs Qh')).length === 13,
+      `${E.parseRange('QQ+', H('Qs Qh')).length}`);
+    t('{QQ+, AK} is 34 combos unblocked', E.parseRange('QQ+, AK', []).length === 34,
+      `${E.parseRange('QQ+, AK', []).length}`);
+  }
+
+  // the polar drill: value/bluff counting and the call decision must be consistent
+  {
+    const g5 = mulberry32(4242);
+    let bad = null, over = 0, under = 0, n = 0;
+    for (let i = 0; i < 150 && !bad; i++) {
+      const st = DRILLS.polar.generate(g5);
+      if (!st) { bad = 'generate returned null'; break; }
+      const qs = DRILLS.polar.questions(st);
+      n++;
+      if (qs[0].answer !== st.val) { bad = 'Q1 is not the value-combo count'; break; }
+      if (st.val + st.blf + st.tie !== st.tot) { bad = 'combo counts do not sum to the total'; break; }
+      if (st.val < 3 || st.blf < 3) { bad = 'not a real bluff-catch spot'; break; }
+      const eqCheck = (st.blf + st.tie / 2) / st.tot;
+      if (Math.abs(eqCheck - st.eqv) > 1e-12) { bad = 'equity does not follow from the counts'; break; }
+      const shouldCall = st.eqv > st.req;
+      if (qs[1].answer !== (shouldCall ? 'Call' : 'Fold')) { bad = 'decision disagrees with equity vs price'; break; }
+      if (Math.abs(st.eqv - st.req) < 0.04) { bad = 'spot too close to the threshold'; break; }
+      // over-bluffing must imply calling is right, and vice versa
+      const overB = st.bluffShareReal > st.bluffShareBal;
+      if (overB !== shouldCall) { bad = `over-bluffing (${overB}) disagrees with call (${shouldCall})`; break; }
+      overB ? over++ : under++;
+    }
+    t('polar: counts sum, equity follows, decision follows', bad === null, bad || `${n} deals`);
+    t('polar: over-bluffing implies call, under-bluffing implies fold', bad === null,
+      `${over} over / ${under} under`);
+    t('polar generates both over and under-bluffing spots', over > 10 && under > 10);
+  }
+
+  // adaptive bucketing
+  {
+    const ids = Object.keys(DRILLS);
+    t('every drill exposes bucket()', ids.every(id => typeof DRILLS[id].bucket === 'function'),
+      ids.length + ' drills');
+    const g6 = mulberry32(31);
+    let allStrings = true, seen = {};
+    for (const id of ids) {
+      for (let i = 0; i < 25; i++) {
+        const st = DRILLS[id].generate(g6);
+        if (!st) continue;
+        const b = DRILLS[id].bucket(st);
+        if (typeof b !== 'string' || !b.length) { allStrings = false; }
+        (seen[id] = seen[id] || new Set()).add(b);
+      }
+    }
+    t('bucket() always returns a non-empty string', allStrings);
+    const multi = ids.filter(id => seen[id] && seen[id].size > 1);
+    t('most drills produce more than one bucket, so adaptation has something to steer',
+      multi.length >= 5, `${multi.length}/${ids.length}: ` +
+      ids.map(id => id + '=' + (seen[id] ? seen[id].size : 0)).join(' '));
+  }
+
+  // dead outs
+  {
+    const dead = E.deadOuts(H('Ah Kh'), H('Qs Qd'), H('Qh 7h 2c'));
+    const live = countOuts(H('Ah Kh'), H('Qs Qd'), H('Qh 7h 2c'));
+    t('the 2h is a dead out, not a live one',
+      dead.some(c => c === H('2h')[0]) && !live.some(c => c === H('2h')[0]));
+    t('live and dead outs never overlap', !dead.some(c => live.indexOf(c) >= 0));
+  }
 
 // ---------------------------------------------------------------- summary
 console.log(`\n${fail === 0 ? 'ALL PASS' : fail + ' FAILED'}   ${pass}/${pass + fail}\n`);
