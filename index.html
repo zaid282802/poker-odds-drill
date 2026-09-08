@@ -21,7 +21,7 @@ try{document.documentElement.dataset.theme=localStorage.getItem('pk-theme')||'da
   --text:#e6edf3; --text-2:#8b949e; --muted:#6e7681;
   --accent:#58a6ff; --green:#3fb950; --red:#f85149;
   --card-face:#f0f3f6; --card-ink:#161b22; --suit-red:#c9252d;
-  --pad:clamp(12px,4vw,20px); --tap:48px; --padh:300px;
+  --pad:clamp(12px,4vw,20px); --tap:48px; --padh:clamp(228px,38vh,300px);
   --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
 }
@@ -37,7 +37,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16
 #app{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 auto}
 #tbar{flex:none;height:2px;background:var(--border)}
 #tbar i{display:block;height:100%;width:100%;background:var(--accent)}
-#tbar i.over{background:var(--red)}
+#tbar i.over{background:var(--red);animation:overpulse 1.1s ease-in-out infinite}
+@keyframes overpulse{0%,100%{opacity:1}50%{opacity:.45}}
+button:focus-visible,select:focus-visible,summary:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){
+  #situation,#prompt,#pad button{transition:none}
+  #tbar i{transition:none}
+  #tbar i.over{animation:none}}
 header{flex:none;display:flex;gap:8px;align-items:center;padding:10px var(--pad)}
 #stage{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
   padding:0 var(--pad) 14px;-webkit-overflow-scrolling:touch}
@@ -71,6 +78,11 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manip
 #ans .unit{font-size:16px;color:var(--text-2)}
 #ans.empty{color:var(--muted)}
 #ans.ok{border-color:var(--green)}
+#ans .big{font-size:30px;line-height:1.1}
+#ans .big .mark{font-weight:700}
+#ans.ok .mark{color:var(--green)} #ans.no .mark{color:var(--red)}
+#ans .sub{display:block;margin-top:3px;font-size:13px;color:var(--text-2);letter-spacing:0}
+#ans .sub b{color:var(--text)} #ans .sub .slow{color:var(--red)}
 #ans.no{border-color:var(--red)}
 #ans u{text-decoration:none;border-bottom:3px solid var(--accent)}
 
@@ -111,6 +123,8 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manip
 .out{font-family:var(--mono);font-size:12.5px;padding:2px 6px;border-radius:4px;
   background:#16301f;color:#7ee2a8;border:1px solid #1f6f4e}
 .out.dead{background:#301718;color:#f0a7a4;border-color:#7d2a28;text-decoration:line-through}
+.out.red{color:#a8e6c2}
+.out.dead.red{color:#ffc4c0}
 
 /* about panel */
 #about{display:none;margin-top:12px;padding:11px 13px;border-radius:8px;
@@ -183,7 +197,7 @@ pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.5}
    Poker Odds Drill - engine
    Cards are ints 0..51:  rank = c>>2  (0=deuce .. 12=ace),  suit = c&3
    ============================================================ */
-var VERSION = '0.3.0';
+var VERSION = '0.4.0';
 var RANKS = '23456789TJQKA';
 var SUITS = ['♠','♥','♦','♣'];   // s h d c ; 1 and 2 are red
 
@@ -1076,7 +1090,7 @@ function startTimer(){
   el.style.transition='width '+t+'s linear';
   el.style.width='0%';
   S.tmr=setTimeout(function(){
-    el.style.transition='width 160ms ease-out'; el.className='over'; el.style.width='100%';
+    el.style.transition='none'; el.className='over'; el.style.width='100%';
   },t*1000);
 }
 function stopTimer(){ clearTimeout(S.tmr); }
@@ -1170,20 +1184,26 @@ function gradeNow(){
   stopTimer();
   var d=DRILLS[S.id];
   record(S.id,ok,S.secs,d.bucket?d.bucket(S.st):null);
-  $('ans').className=ok?'ok':'no';
-
   var tgt=TARGETS[S.id]||15,slow=S.secs>tgt;
 
-  /* Tier 1: one scannable line, always. */
-  var h='<div class="verdict"><span class="'+(ok?'ok':'no')+'">'+(ok?'\u2713':'\u2717')+'</span> '+
-        'you <b>'+user+(q.kind==='int'?q.unit:'')+'</b>';
-  if(q.kind!=='choice') h+=' &nbsp;answer <b>'+q.answer+q.unit+'</b>';
+  /* Tier 1 lives in #ans, directly above the keypad, because that is where the
+     eye already is when the thumb presses Check. Big: verdict and the true
+     answer. Small: what you said, by how much, and how long you took. */
+  var mark=ok?'\u2713':'\u2717';
+  var truth=(q.kind==='choice')?q.answer:(q.answer+q.unit);
+  var sub='you <b>'+user+(q.kind==='int'?q.unit:'')+'</b>';
   if(q.kind==='int'){
     var e=user-q.answer;
-    h+=' &nbsp;<b>'+(e>0?'+':'')+e+q.unit+'</b><span class="dim"> of &plusmn;'+q.tol+'</span>';
+    sub+=' &middot; <b>'+(e>0?'+':'')+e+q.unit+'</b> of &plusmn;'+q.tol;
   }
-  h+=extra;
-  h+=' &nbsp;<span class="'+(slow?'no':'dim')+'">'+S.secs.toFixed(1)+'s'+(slow?' / '+tgt+'s':'')+'</span></div>';
+  if(extra) sub+=' &middot;'+extra;
+  sub+=' &middot; <span class="'+(slow?'slow':'')+'">'+S.secs.toFixed(1)+'s'+(slow?' / '+tgt+'s':'')+'</span>';
+  $('ans').className=ok?'ok':'no';
+  $('ans').innerHTML='<span class="big"><span class="mark">'+mark+'</span> '+truth+'</span>'+
+                     '<span class="sub">'+sub+'</span>';
+
+  /* Tier 2 onwards stays in #fb: the picture, then the method. */
+  var h='';
 
   /* Tier 2: the picture, always. */
   var st=S.st,vis='';
