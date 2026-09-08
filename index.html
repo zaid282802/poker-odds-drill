@@ -21,129 +21,161 @@ try{document.documentElement.dataset.theme=localStorage.getItem('pk-theme')||'da
   --text:#e6edf3; --text-2:#8b949e; --muted:#6e7681;
   --accent:#58a6ff; --green:#3fb950; --red:#f85149;
   --card-face:#f0f3f6; --card-ink:#161b22; --suit-red:#c9252d;
-  --pad:clamp(12px,4vw,24px); --tap:48px;
+  --pad:clamp(12px,4vw,20px); --tap:48px; --padh:300px;
   --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box}
 html{color-scheme:dark}
-body{
-  margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
-  font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%;
-  overscroll-behavior:none;
-}
-#app{max-width:560px;margin:0 auto;padding:var(--pad);padding-bottom:calc(240px + env(safe-area-inset-bottom))}
-header{display:flex;gap:8px;align-items:center;margin-bottom:18px}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;
+  line-height:1.45;-webkit-text-size-adjust:100%;overscroll-behavior:none}
+
+/* three fixed bands: timer, header, then a scrolling stage, then the controls.
+   Nothing overlaps and the keypad never changes height, so answering does not
+   shift the layout. */
+#app{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 auto}
+#tbar{flex:none;height:2px;background:var(--border)}
+#tbar i{display:block;height:100%;width:100%;background:var(--accent)}
+#tbar i.over{background:var(--red)}
+header{flex:none;display:flex;gap:8px;align-items:center;padding:10px var(--pad)}
+#stage{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:0 var(--pad) 14px;-webkit-overflow-scrolling:touch}
+#ctl{flex:none;background:var(--bg-2);border-top:1px solid var(--border);
+  padding-bottom:env(safe-area-inset-bottom)}
+
 select,button{font-family:inherit;font-size:15px;color:var(--text);background:var(--bg-2);
   border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:var(--tap)}
-select{flex:1}
+select{flex:1;min-width:0}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
-button:active{background:var(--surface)}
-.ghost{background:transparent;padding:10px}
+.ghost{background:transparent;padding:10px;min-width:44px}
 
 /* situation */
-#situation{margin-bottom:16px}
-.lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-.hand{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 5px}
+.hand{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
 .card{
-  width:clamp(44px,12.5vw,62px);aspect-ratio:5/7;border-radius:6px;
+  width:clamp(40px,11.5vw,56px);aspect-ratio:5/7;border-radius:6px;
   background:var(--card-face);color:var(--card-ink);
   display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-weight:600;font-size:clamp(19px,6vw,27px);
-  letter-spacing:-.02em;
+  font-family:var(--mono);font-weight:600;font-size:clamp(17px,5.5vw,24px);letter-spacing:-.02em;
 }
 .card.red{color:var(--suit-red)}
-.money{font-family:var(--mono);font-size:15px;color:var(--text-2)}
+.money{font-family:var(--mono);font-size:14px;color:var(--text-2)}
 .money b{color:var(--text);font-weight:600}
+#prompt{font-size:16px;margin:10px 0 0}
 
-/* prompt + answer */
-#prompt{font-size:17px;margin-bottom:10px}
-#ans{font-family:var(--mono);font-size:34px;min-height:46px;color:var(--accent);letter-spacing:.02em}
-#ans .unit{font-size:18px;color:var(--text-2)}
+/* the answer readout sits directly above the keypad, so the eye does not
+   travel to the top of the screen while the thumb is at the bottom */
+#ans{font-family:var(--mono);font-size:30px;line-height:1.1;padding:10px var(--pad) 6px;
+  color:var(--accent);letter-spacing:.02em;border:2px solid transparent;border-radius:8px;margin:2px var(--pad) 0}
+#ans .unit{font-size:16px;color:var(--text-2)}
 #ans.empty{color:var(--muted)}
+#ans.ok{border-color:var(--green)}
+#ans.no{border-color:var(--red)}
+#ans u{text-decoration:none;border-bottom:3px solid var(--accent)}
 
-/* feedback */
-#fb{margin-top:14px;padding:12px 14px;border-radius:8px;background:var(--surface);
+/* feedback, in three tiers */
+#fb{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--surface);
   border:1px solid var(--border);font-size:15px;display:none}
 #fb.on{display:block}
-#fb .row{font-family:var(--mono);font-size:14px;color:var(--text-2)}
-#fb .row b{color:var(--text)}
+#fb .verdict{font-family:var(--mono);font-size:13.5px;color:var(--text-2)}
+#fb .verdict b{color:var(--text)}
 #fb .ok{color:var(--green);font-weight:600}
 #fb .no{color:var(--red);font-weight:600}
-#fb .method{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);
-  font-size:14px;color:var(--text-2);line-height:1.5}
-#fb code{font-family:var(--mono);color:var(--text);font-size:13px}
+#fb details{margin-top:9px;border-top:1px solid var(--border);padding-top:8px}
+#fb summary{cursor:pointer;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--accent);list-style:none}
+#fb summary::-webkit-details-marker{display:none}
+#fb summary::before{content:'\25B8  '}
+#fb details[open] summary::before{content:'\25BE  '}
+#fb .method{font-size:14px;color:var(--text-2);line-height:1.5;margin-top:7px}
+#fb code{font-family:var(--mono);color:var(--text);font-size:12.5px}
 
-/* keypad */
-#pad{position:fixed;left:0;right:0;bottom:0;background:var(--bg-2);
-  border-top:1px solid var(--border);padding:8px 8px calc(8px + env(safe-area-inset-bottom));
-  display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:560px;margin:0 auto}
-#pad button{font-family:var(--mono);font-size:20px;min-height:52px;padding:0}
-#pad .go{background:var(--accent);color:#04101f;border-color:var(--accent);font-weight:700}
-#pad .wide{grid-column:span 3;font-family:var(--sans);font-size:16px}
-#pad.choice{grid-template-columns:repeat(2,1fr)}
+/* equity bar, with a marker for the true value and one for your estimate */
+.barwrap{position:relative;margin:9px 0 4px;padding-top:13px}
+.bar{display:flex;height:20px;border-radius:4px;overflow:hidden;
+  font-family:var(--mono);font-size:10.5px;line-height:20px;text-align:center}
+.bar span{min-width:0;overflow:hidden;white-space:nowrap}
+.bar .w{background:#1f6f4e;color:#dff5e9}
+.bar .t{background:#6e7681;color:#0d1117}
+.bar .l{background:#7d2a28;color:#fadbd9}
+.pip{position:absolute;top:0;width:0;height:33px;border-left:2px solid var(--text);
+  font-family:var(--mono);font-size:10px;white-space:nowrap}
+.pip b{position:absolute;top:-1px;left:3px;color:var(--text);font-weight:600}
+.pip.you{border-left-style:dashed;border-left-color:var(--accent)}
+.pip.you b{color:var(--accent);left:-32px;text-align:right;width:29px}
+.barkey{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
 
-/* about panel: what this drill trains */
-#about{display:none;margin-bottom:16px;padding:12px 14px;border-radius:8px;
+/* out badges */
+.outs{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0}
+.out{font-family:var(--mono);font-size:12.5px;padding:2px 6px;border-radius:4px;
+  background:#16301f;color:#7ee2a8;border:1px solid #1f6f4e}
+.out.dead{background:#301718;color:#f0a7a4;border-color:#7d2a28;text-decoration:line-through}
+
+/* about panel */
+#about{display:none;margin-top:12px;padding:11px 13px;border-radius:8px;
   background:var(--bg-2);border:1px solid var(--border);font-size:14px;line-height:1.5}
 #about.on{display:block}
-#about h3{margin:0 0 6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+#about h3{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
 #about p{margin:0 0 8px;color:var(--text-2)}
 #about p:last-child{margin:0}
 #about b{color:var(--text)}
 #about .eg{padding:8px 10px;border-left:2px solid var(--border);background:var(--bg);border-radius:4px}
 
-/* equity bar */
-.bar{display:flex;height:22px;border-radius:4px;overflow:hidden;margin:10px 0 6px;
-  font-family:var(--mono);font-size:11px;line-height:22px;text-align:center}
-.bar span{min-width:0;overflow:hidden;white-space:nowrap}
-.bar .w{background:#1f6f4e;color:#dff5e9}
-.bar .t{background:#6e7681;color:#0d1117}
-.bar .l{background:#7d2a28;color:#fadbd9}
-.barkey{font-family:var(--mono);font-size:11px;color:var(--muted)}
-
-/* out badges */
-.outs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}
-.out{font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px;
-  background:#16301f;color:#7ee2a8;border:1px solid #1f6f4e}
-.out.dead{background:#301718;color:#f0a7a4;border-color:#7d2a28;text-decoration:line-through}
-.out.red{color:#ff9d97}
-
-/* motion: just enough to signal that the state changed */
-#situation,#prompt{transition:opacity 90ms ease-out}
-.fade{opacity:.12}
-.timer{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:auto;padding:0 4px}
-.timer.over{color:var(--red)}
+/* keypad: fixed height in every state, so nothing moves when you answer */
+#pad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,1fr);
+  gap:6px;padding:6px var(--pad) 8px;height:var(--padh)}
+#pad button{font-family:var(--mono);font-size:19px;min-height:0;padding:0}
+#pad .go{background:var(--accent);color:#04101f;border-color:var(--accent);font-weight:700}
+#pad .wide{grid-column:span 3;font-family:var(--sans);font-size:16px}
+#pad .fill{grid-column:span 3;grid-row:span 5;font-family:var(--sans);font-size:18px}
+#pad.choice{grid-template-columns:repeat(2,1fr);grid-template-rows:1fr}
+#pad.choice button{font-family:var(--sans);font-size:18px}
 
 /* stats */
-#stats{display:none;margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
+#stats{display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
 #stats.on{display:block}
-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
-th,td{text-align:right;padding:5px 4px;border-bottom:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px}
+th,td{text-align:right;padding:4px 3px;border-bottom:1px solid var(--border)}
 th:first-child,td:first-child{text-align:left}
 th{color:var(--muted);font-weight:500}
-.ver{margin-top:10px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.ver{margin-top:9px;font-size:11px;color:var(--muted);font-family:var(--mono)}
 pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.5}
 .dim{color:var(--muted)}
-#fb u{text-decoration:none;border-bottom:2px solid var(--accent)}
-#ans u{text-decoration:none;border-bottom:3px solid var(--accent)}
+
+/* motion: enough to confirm a tap and to signal a new hand, nothing more */
+#situation,#prompt{transition:opacity 90ms ease-out,transform 90ms ease-out}
+.fade{opacity:0;transform:translateY(5px)}
+#pad button:active{transform:scale(.96);background:var(--surface)}
+#pad button{transition:transform 40ms ease-out,background 40ms ease-out}
+#ans{transition:border-color 220ms ease-out}
+#tbar i{transition:width 0s linear}
+@media (prefers-reduced-motion:reduce){
+  #situation,#prompt,#pad button,#ans,#tbar i{transition:none}
+  .fade{opacity:1;transform:none}
+}
 </style>
 </head>
 <body>
 <div id="app">
+  <div id="tbar"><i></i></div>
   <header>
     <select id="drill" aria-label="Drill"></select>
     <button class="ghost" id="aboutBtn" aria-label="What this drill trains">?</button>
     <button class="ghost" id="statsBtn" aria-label="Stats">&#9776;</button>
   </header>
-  <div id="about"></div>
-  <div id="situation"></div>
-  <div id="prompt"></div>
-  <div id="ans" class="empty">&mdash;</div>
-  <div id="fb"></div>
-  <div id="stats"></div>
+  <main id="stage">
+    <div id="about"></div>
+    <div id="situation"></div>
+    <div id="prompt"></div>
+    <div id="fb"></div>
+    <div id="stats"></div>
+  </main>
+  <footer id="ctl">
+    <div id="ans" class="empty">&mdash;</div>
+    <div id="pad"></div>
+  </footer>
 </div>
-<div id="pad"></div>
 
 <script id="engine">
 'use strict';
@@ -151,7 +183,7 @@ pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.5}
    Poker Odds Drill - engine
    Cards are ints 0..51:  rank = c>>2  (0=deuce .. 12=ace),  suit = c&3
    ============================================================ */
-var VERSION = '0.2.0';
+var VERSION = '0.3.0';
 var RANKS = '23456789TJQKA';
 var SUITS = ['♠','♥','♦','♣'];   // s h d c ; 1 and 2 are red
 
@@ -1034,15 +1066,34 @@ function pickSpot(d){
   return best;
 }
 
+/* A silent 2px decay bar instead of a ticking number: peripheral time pressure
+   with no clock to stare at. It refills in red once you are over target. */
+function startTimer(){
+  var el=$('tbar').firstChild,t=TARGETS[S.id]||15;
+  clearTimeout(S.tmr);
+  el.className=''; el.style.transition='none'; el.style.width='100%';
+  void el.offsetWidth;
+  el.style.transition='width '+t+'s linear';
+  el.style.width='0%';
+  S.tmr=setTimeout(function(){
+    el.style.transition='width 160ms ease-out'; el.className='over'; el.style.width='100%';
+  },t*1000);
+}
+function stopTimer(){ clearTimeout(S.tmr); }
+
 function nextHand(){
   var d=DRILLS[S.id];
   var st=pickSpot(d);
   if(!st){ $('situation').innerHTML='<div class="lbl">could not deal a spot, try again</div>'; return; }
   S.st=st; S.qs=d.questions(st); S.qi=0;
   S.typed=''; S.choice=null; S.mkt={bid:'',ask:'',side:'bid'}; S.phase='ask';
+  S.t0=Date.now(); startTimer();
+  $('stage').scrollTop=0;
   $('situation').classList.add('fade'); $('prompt').classList.add('fade');
   draw();
-  setTimeout(function(){ $('situation').classList.remove('fade'); $('prompt').classList.remove('fade'); },20);
+  requestAnimationFrame(function(){
+    $('situation').classList.remove('fade'); $('prompt').classList.remove('fade');
+  });
 }
 function handHtml(cards){
   return cards.map(function(c){
@@ -1054,12 +1105,16 @@ function badgeHtml(cards,dead){
     return '<span class="out'+(dead?' dead':'')+(isRed(c)?' red':'')+'">'+cardStr(c)+'</span>';
   }).join('')+'</div>';
 }
-function barHtml(e){
-  var w=e.win/e.n*100,t=(e.tie/e.n)*100,l=100-w-t;
-  var seg=function(cls,v,lab){ return v<0.5?'':'<span class="'+cls+'" style="flex:'+v+'">'+(v>11?lab:'')+'</span>'; };
-  return '<div class="bar">'+seg('w',w,'win '+Math.round(w)+'%')+seg('t',t,'tie '+Math.round(t)+'%')+
-    seg('l',l,'lose '+Math.round(l)+'%')+'</div>'+
-    '<div class="barkey">win '+one(w)+'%  ·  tie '+one(t)+'%  ·  lose '+one(l)+'%  ·  equity = win + tie/2 = '+one(e.eq*100)+'%</div>';
+function barHtml(e,guess){
+  var w=e.win/e.n*100,t=(e.tie/e.n)*100,l=100-w-t,eq=e.eq*100;
+  var seg=function(cls,v,lab){ return v<0.5?'':'<span class="'+cls+'" style="flex:'+v+'">'+(v>13?lab:'')+'</span>'; };
+  var pips='<span class="pip" style="left:'+one(eq)+'%"><b>'+one(eq)+'%</b></span>';
+  if(guess!==null&&guess!==undefined&&isFinite(guess))
+    pips+='<span class="pip you" style="left:'+Math.max(0,Math.min(100,guess))+'%"><b>you '+guess+'</b></span>';
+  return '<div class="barwrap">'+pips+'<div class="bar">'+
+    seg('w',w,'win '+Math.round(w)+'%')+seg('t',t,'tie '+Math.round(t)+'%')+seg('l',l,'lose '+Math.round(l)+'%')+
+    '</div></div><div class="barkey">win '+one(w)+'  tie '+one(t)+'  lose '+one(l)+
+    '   &rarr;   equity = win + tie/2 = <b>'+one(eq)+'%</b></div>';
 }
 function draw(){
   var st=S.st,h='';
@@ -1089,67 +1144,80 @@ function draw(){
     }
     else { a.className=S.typed?'':'empty'; a.innerHTML=(S.typed||'&mdash;')+(S.typed&&q.unit?'<span class="unit">'+q.unit+'</span>':''); }
     $('fb').className='';
-    S.t0=Date.now();
   }
   pad();
 }
 function gradeNow(){
-  var q=S.qs[S.qi],user,ok,extra='';
+  var q=S.qs[S.qi],user,ok,extra='',guess=null;
   S.secs=(Date.now()-S.t0)/1000;
   if(q.kind==='choice'){ if(!S.choice) return; user=S.choice; ok=(user===q.answer); }
   else if(q.kind==='market'){
     var bid=parseInt(S.mkt.bid,10),ask=parseInt(S.mkt.ask,10);
     if(isNaN(bid)||isNaN(ask)) return;
-    if(ask<bid){ var t=bid; bid=ask; ask=t; }
+    if(ask<bid){ var sw=bid; bid=ask; ask=sw; }
     var width=ask-bid,onside=(q.answer>=bid&&q.answer<=ask);
     ok=onside&&width<=q.tol;
-    user=bid+' / '+ask;
-    extra=' &nbsp; '+(onside?'<span class="ok">onside</span>':'<span class="no">picked off</span>')+
-          ' &nbsp; width <b>'+width+'</b>'+(width>q.tol?' <span class="no">too wide</span>':'');
+    user=bid+' / '+ask; guess=(bid+ask)/2;
+    extra=' '+(onside?'<span class="ok">onside</span>':'<span class="no">picked off</span>')+
+          ' w<b>'+width+'</b>'+(width>q.tol?' <span class="no">too wide</span>':'');
   }
   else{
     if(S.typed===''||S.typed==='-') return;
     user=parseInt(S.typed,10); if(isNaN(user)) return;
     ok=Math.abs(user-q.answer)<=q.tol;
+    if(q.unit==='%') guess=user;
   }
+  stopTimer();
   var d=DRILLS[S.id];
   record(S.id,ok,S.secs,d.bucket?d.bucket(S.st):null);
+  $('ans').className=ok?'ok':'no';
 
   var tgt=TARGETS[S.id]||15,slow=S.secs>tgt;
-  var h='<div class="row">you <b>'+user+(q.kind==='int'?q.unit:'')+'</b>';
-  if(q.kind!=='choice') h+=' &nbsp; answer <b>'+q.answer+q.unit+'</b>';
+
+  /* Tier 1: one scannable line, always. */
+  var h='<div class="verdict"><span class="'+(ok?'ok':'no')+'">'+(ok?'\u2713':'\u2717')+'</span> '+
+        'you <b>'+user+(q.kind==='int'?q.unit:'')+'</b>';
+  if(q.kind!=='choice') h+=' &nbsp;answer <b>'+q.answer+q.unit+'</b>';
   if(q.kind==='int'){
     var e=user-q.answer;
-    h+=' &nbsp; error <b>'+(e>0?'+':'')+e+q.unit+'</b>';
-    if(q.tol>0) h+=' <span class="dim">(tol &plusmn;'+q.tol+')</span>';
+    h+=' &nbsp;<b>'+(e>0?'+':'')+e+q.unit+'</b><span class="dim"> of &plusmn;'+q.tol+'</span>';
   }
   h+=extra;
-  h+=' &nbsp; <span class="'+(ok?'ok':'no')+'">'+(ok?'✓':'✗')+'</span>';
-  h+=' &nbsp; <span class="'+(slow?'no':'dim')+'">'+S.secs.toFixed(1)+'s'+(slow?' (target '+tgt+'s)':'')+'</span></div>';
+  h+=' &nbsp;<span class="'+(slow?'no':'dim')+'">'+S.secs.toFixed(1)+'s'+(slow?' / '+tgt+'s':'')+'</span></div>';
 
-  // the visual, and then the method, on every question, right or wrong
+  /* Tier 2: the picture, always. */
   var st=S.st,vis='';
-  if(st.eq&&st.eq.n) vis+=barHtml(st.eq);
+  if(st.eq&&st.eq.n) vis+=barHtml(st.eq,guess);
   if(S.id==='outs'){
     vis+='<div class="barkey">live outs</div>'+badgeHtml(st.outs,false);
     var dead=deadOuts(st.hero,st.vil,st.board);
-    if(dead.length) vis+='<div class="barkey">improve you but still lose ('+dead.length+
-      (dead.length>8?', first 8':'')+')</div>'+badgeHtml(dead.slice(0,8),true);
+    if(dead.length) vis+='<div class="barkey">improve you but still lose'+
+      (dead.length>8?' (first 8 of '+dead.length+')':'')+'</div>'+badgeHtml(dead.slice(0,8),true);
   }
-  h+='<div class="method">'+vis+DRILLS[S.id].explain(st)+'</div>';
+  h+=vis;
+
+  /* Tier 3: the method. Open when you were wrong or slow, folded away when you
+     were right and quick, so a fast session stays fast. */
+  h+='<details'+((!ok||slow)?' open':'')+'><summary>Method</summary><div class="method">'+
+     d.explain(st)+'</div></details>';
+
   $('fb').innerHTML=h; $('fb').className='on';
   S.phase='graded'; pad();
+  if(!ok||slow) $('fb').scrollIntoView({block:'nearest'});
 }
+
 function advance(){
+  $('ans').className='empty';
   if(S.qi<S.qs.length-1){
-    S.qi++; S.typed=''; S.choice=null; S.mkt={bid:'',ask:'',side:'bid'}; S.phase='ask'; draw();
+    S.qi++; S.typed=''; S.choice=null; S.mkt={bid:'',ask:'',side:'bid'}; S.phase='ask';
+    draw(); S.t0=Date.now(); startTimer();
   } else nextHand();
 }
 function pad(){
   var q=S.qs[S.qi],p=$('pad'),h='';
   if(S.phase==='graded'){
     p.className='';
-    p.innerHTML='<button class="go wide" data-k="next">'+(S.qi<S.qs.length-1?'Next question':'Next hand')+'</button>';
+    p.innerHTML='<button class="go fill" data-k="next">'+(S.qi<S.qs.length-1?'Next question':'Next hand')+'</button>';
   } else if(q.kind==='choice'){
     p.className='choice';
     p.innerHTML=q.choices.map(function(c){ return '<button data-c="'+c+'">'+c+'</button>'; }).join('');
