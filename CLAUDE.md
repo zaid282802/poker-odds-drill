@@ -21,7 +21,7 @@ Seven drills: `outs`, `potodds`, `combos`, `equity`, `callfold`, `bluff`, `marke
 2. **Zero external requests.** No Google Fonts, no CDN, no images. System font stack, Unicode suit
    glyphs. Verify with DevTools Network: only the document itself should appear. This is what makes
    it work offline once loaded.
-3. **Size cap 60 KB** for `index.html`. Currently about 32 KB.
+3. **Size cap 60 KB** for `index.html`. Currently about 52 KB, so 88% used. Budget carefully.
 4. **Dark only.** `color-scheme: dark`, tokens in `:root`. The `data-theme` hook and the blocking
    head script are already there so a light theme is a small addition later, but do not add one
    speculatively.
@@ -100,9 +100,10 @@ If MC 40k ever exceeds 100 ms, something has been de-optimised. The usual cause 
   against KK by 1.4 points, and generating it takes hours. MC costs 27 ms and zero bytes.
 - No opening-range chart. That grades memorisation of somebody's opinion, not arithmetic. It is the
   phase-2 `position` drill if it ever gets built.
-- No service worker or `manifest.json` yet. They do nothing over LAN `http://`, since only
-  `localhost` is exempt from the secure-origin rule. Add them only alongside a GitHub Pages deploy,
-  and then follow the `../News/` convention: versioned `STATIC_CACHE`, bumped on every asset change.
+- No adaptive difficulty yet. See phase 2 item 1, and note the reasoning correction there.
+- No multiway support in `callfold` or `market`, only in `equity`. Worth adding, since multiway is
+  where marginal hands actually become unplayable.
+- No tournament or ICM math. Different book, different drill set.
 
 ## Phase 2, in order
 
