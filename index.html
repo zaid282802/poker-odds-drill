@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="author" content="Zaid Annigeri">
+<title>Poker Odds Drill</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<script>
+// applied before paint so there is no flash if a light theme is added later
+try{document.documentElement.dataset.theme=localStorage.getItem('pk-theme')||'dark';}catch(e){}
+</script>
+<style>
+:root{
+  --bg:#0d1117; --bg-2:#161b22; --surface:#1c2128; --border:#30363d;
+  --text:#e6edf3; --text-2:#8b949e; --muted:#6e7681;
+  --accent:#58a6ff; --green:#3fb950; --red:#f85149;
+  --card-face:#f0f3f6; --card-ink:#161b22; --suit-red:#c9252d;
+  --pad:clamp(12px,4vw,24px); --tap:48px;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{
+  margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%;
+  overscroll-behavior:none;
+}
+#app{max-width:560px;margin:0 auto;padding:var(--pad);padding-bottom:calc(240px + env(safe-area-inset-bottom))}
+header{display:flex;gap:8px;align-items:center;margin-bottom:18px}
+select,button{font-family:inherit;font-size:15px;color:var(--text);background:var(--bg-2);
+  border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:var(--tap)}
+select{flex:1}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
+button:active{background:var(--surface)}
+.ghost{background:transparent;padding:10px}
+
+/* situation */
+#situation{margin-bottom:16px}
+.lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.hand{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.card{
+  width:clamp(44px,12.5vw,62px);aspect-ratio:5/7;border-radius:6px;
+  background:var(--card-face);color:var(--card-ink);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:600;font-size:clamp(19px,6vw,27px);
+  letter-spacing:-.02em;
+}
+.card.red{color:var(--suit-red)}
+.money{font-family:var(--mono);font-size:15px;color:var(--text-2)}
+.money b{color:var(--text);font-weight:600}
+
+/* prompt + answer */
+#prompt{font-size:17px;margin-bottom:10px}
+#ans{font-family:var(--mono);font-size:34px;min-height:46px;color:var(--accent);letter-spacing:.02em}
+#ans .unit{font-size:18px;color:var(--text-2)}
+#ans.empty{color:var(--muted)}
+
+/* feedback */
+#fb{margin-top:14px;padding:12px 14px;border-radius:8px;background:var(--surface);
+  border:1px solid var(--border);font-size:15px;display:none}
+#fb.on{display:block}
+#fb .row{font-family:var(--mono);font-size:14px;color:var(--text-2)}
+#fb .row b{color:var(--text)}
+#fb .ok{color:var(--green);font-weight:600}
+#fb .no{color:var(--red);font-weight:600}
+#fb .method{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);
+  font-size:14px;color:var(--text-2);line-height:1.5}
+#fb code{font-family:var(--mono);color:var(--text);font-size:13px}
+
+/* keypad */
+#pad{position:fixed;left:0;right:0;bottom:0;background:var(--bg-2);
+  border-top:1px solid var(--border);padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:560px;margin:0 auto}
+#pad button{font-family:var(--mono);font-size:20px;min-height:52px;padding:0}
+#pad .go{background:var(--accent);color:#04101f;border-color:var(--accent);font-weight:700}
+#pad .wide{grid-column:span 3;font-family:var(--sans);font-size:16px}
+#pad.choice{grid-template-columns:repeat(2,1fr)}
+
+/* about panel: what this drill trains */
+#about{display:none;margin-bottom:16px;padding:12px 14px;border-radius:8px;
+  background:var(--bg-2);border:1px solid var(--border);font-size:14px;line-height:1.5}
+#about.on{display:block}
+#about h3{margin:0 0 6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+#about p{margin:0 0 8px;color:var(--text-2)}
+#about p:last-child{margin:0}
+#about b{color:var(--text)}
+#about .eg{padding:8px 10px;border-left:2px solid var(--border);background:var(--bg);border-radius:4px}
+
+/* equity bar */
+.bar{display:flex;height:22px;border-radius:4px;overflow:hidden;margin:10px 0 6px;
+  font-family:var(--mono);font-size:11px;line-height:22px;text-align:center}
+.bar span{min-width:0;overflow:hidden;white-space:nowrap}
+.bar .w{background:#1f6f4e;color:#dff5e9}
+.bar .t{background:#6e7681;color:#0d1117}
+.bar .l{background:#7d2a28;color:#fadbd9}
+.barkey{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+/* out badges */
+.outs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}
+.out{font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px;
+  background:#16301f;color:#7ee2a8;border:1px solid #1f6f4e}
+.out.dead{background:#301718;color:#f0a7a4;border-color:#7d2a28;text-decoration:line-through}
+.out.red{color:#ff9d97}
+
+/* motion: just enough to signal that the state changed */
+#situation,#prompt{transition:opacity 90ms ease-out}
+.fade{opacity:.12}
+.timer{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:auto;padding:0 4px}
+.timer.over{color:var(--red)}
+
+/* stats */
+#stats{display:none;margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
+#stats.on{display:block}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
+th,td{text-align:right;padding:5px 4px;border-bottom:1px solid var(--border)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+.ver{margin-top:10px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.5}
+.dim{color:var(--muted)}
+#fb u{text-decoration:none;border-bottom:2px solid var(--accent)}
+#ans u{text-decoration:none;border-bottom:3px solid var(--accent)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <select id="drill" aria-label="Drill"></select>
+    <button class="ghost" id="aboutBtn" aria-label="What this drill trains">?</button>
+    <button class="ghost" id="statsBtn" aria-label="Stats">&#9776;</button>
+  </header>
+  <div id="about"></div>
+  <div id="situation"></div>
+  <div id="prompt"></div>
+  <div id="ans" class="empty">&mdash;</div>
+  <div id="fb"></div>
+  <div id="stats"></div>
+</div>
+<div id="pad"></div>
+
+<script id="engine">
+'use strict';
+/* ============================================================
+   Poker Odds Drill - engine
+   Cards are ints 0..51:  rank = c>>2  (0=deuce .. 12=ace),  suit = c&3
+   ============================================================ */
+var VERSION = '0.1.0';
+var RANKS = '23456789TJQKA';
+var SUITS = ['♠','♥','♦','♣'];   // s h d c ; 1 and 2 are red
+
+var POP = new Uint8Array(8192);
+var STRAIGHT_TOP = new Int8Array(8192);
+
+function buildTables(){
+  var WHEEL = (1<<12)|1|2|4|8;                       // A,2,3,4,5
+  for(var m=0;m<8192;m++){
+    var c=0;
+    for(var b=0;b<13;b++) if(m&(1<<b)) c++;
+    POP[m]=c;
+    var top=-1;
+    for(var t=12;t>=4;t--){                          // ace-high down to six-high
+      var need=(1<<t)|(1<<(t-1))|(1<<(t-2))|(1<<(t-3))|(1<<(t-4));
+      if((m&need)===need){ top=t; break; }
+    }
+    if(top<0 && (m&WHEEL)===WHEEL) top=3;            // wheel ranks as five-high
+    STRAIGHT_TOP[m]=top;
+  }
+}
+
+var clz = Math.clz32;
+function hi(mask){ return 31-clz(mask); }              // highest set rank; mask must be nonzero
+
+/* five highest set ranks packed as nibbles, most significant first */
+function top5(mask){
+  var v=0,n=0,r;
+  while(mask && n<5){ r=31-clz(mask); v=(v<<4)|r; mask&=~(1<<r); n++; }
+  while(n<5){ v=v<<4; n++; }
+  return v;
+}
+
+/* Comparable score for 5..7 cards. Higher is better.
+   Layout: category<<20 | up to five rank nibbles.
+
+   Rank multiplicities are accumulated as four bitmasks in one pass, so there is
+   no per-call array to clear and no 13-step scan:
+     c1 = ranks seen at least once, c2 = at least twice, c3 = thrice, c4 = four.
+   Bit scans then use Math.clz32.
+
+   Flush is tested before quads and full house on purpose: with at most 7 cards
+   a flush cannot coexist with either (quads need 4 suits, so 4+5-1=8>7; and a
+   full house's pair would need two cards of the flush suit at the same rank).
+   Do not "fix" this order. */
+function evalCards(cards,n){
+  if(n===undefined) n=cards.length;
+  var c1=0,c2=0,c3=0,c4=0,s0=0,s1=0,s2=0,s3=0,i,c,b;
+  for(i=0;i<n;i++){
+    c=cards[i]; b=1<<(c>>2);
+    c4|=c3&b; c3|=c2&b; c2|=c1&b; c1|=b;
+    switch(c&3){case 0:s0|=b;break;case 1:s1|=b;break;case 2:s2|=b;break;default:s3|=b;}
+  }
+  var sm = POP[s0]>=5?s0 : POP[s1]>=5?s1 : POP[s2]>=5?s2 : POP[s3]>=5?s3 : 0;
+  if(sm){
+    var sf=STRAIGHT_TOP[sm];
+    if(sf>=0) return (8<<20)|sf;
+    return (5<<20)|top5(sm);
+  }
+  var q,k,tr,rest,u,a1,a2,p1,p2,rem;
+  if(c4){                                              // four of a kind
+    q=hi(c4); k=hi(c1&~(1<<q));
+    return (7<<20)|(q<<16)|(k<<12);
+  }
+  var pairs=c2&~c3;                                    // ranks appearing exactly twice
+  if(c3){
+    tr=hi(c3);
+    rest=(c3&~(1<<tr))|pairs;                          // a second trips can serve as the pair
+    if(rest) return (6<<20)|(tr<<16)|(hi(rest)<<12);   // full house
+  }
+  var st=STRAIGHT_TOP[c1];
+  if(st>=0) return (4<<20)|st;
+  if(c3){                                              // trips, no pair
+    tr=hi(c3); u=c1&~(1<<tr);
+    a1=hi(u); u&=~(1<<a1);
+    a2=hi(u);
+    return (3<<20)|(tr<<16)|(a1<<12)|(a2<<8);
+  }
+  if(pairs){
+    p1=hi(pairs); rem=pairs&~(1<<p1);
+    if(rem){                                           // two pair
+      p2=hi(rem);
+      k=hi(c1&~(1<<p1)&~(1<<p2));
+      return (2<<20)|(p1<<16)|(p2<<12)|(k<<8);
+    }
+    u=c1&~(1<<p1);                                     // one pair
+    a1=hi(u); u&=~(1<<a1);
+    a2=hi(u); u&=~(1<<a2);
+    return (1<<20)|(p1<<16)|(a1<<12)|(a2<<8)|(hi(u)<<4);
+  }
+  return top5(c1);
+}
+
+var CATS=['high card','pair','two pair','three of a kind','straight','flush','full house','four of a kind','straight flush'];
+function catOf(score){ return CATS[score>>>20]; }
+
+/* ---- deck helpers ---- */
+function cardStr(c){ return RANKS[c>>2]+SUITS[c&3]; }
+function isRed(c){ var s=c&3; return s===1||s===2; }
+function mulberry32(a){
+  return function(){
+    a|=0; a=a+0x6D2B79F5|0;
+    var t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+function seedFrom(cards){ var h=2166136261; for(var i=0;i<cards.length;i++){ h^=cards[i]+1; h=Math.imul(h,16777619); } return h>>>0; }
+
+function remaining(dead){
+  var mark=new Uint8Array(52),out=[],i;
+  for(i=0;i<dead.length;i++) mark[dead[i]]=1;
+  for(i=0;i<52;i++) if(!mark[i]) out.push(i);
+  return out;
+}
+
+var _hb=new Int32Array(7), _vb=new Int32Array(7);
+function fill(buf,a,b,c){
+  var n=0,i;
+  for(i=0;i<a.length;i++) buf[n++]=a[i];
+  for(i=0;i<b.length;i++) buf[n++]=b[i];
+  if(c) for(i=0;i<c.length;i++) buf[n++]=c[i];
+  return n;
+}
+
+/* Exact equity, flop (990 runouts) or turn (44). Returns {eq,method,se}. */
+function enumerateEq(hero,villain,board){
+  var deck=remaining(hero.concat(villain,board));
+  var need=5-board.length, win=0,tie=0,cnt=0,hn,vn,h,v,i,j;
+  if(need===1){
+    for(i=0;i<deck.length;i++){
+      hn=fill(_hb,hero,board,[deck[i]]); vn=fill(_vb,villain,board,[deck[i]]);
+      h=evalCards(_hb,hn); v=evalCards(_vb,vn); cnt++;
+      if(h>v) win++; else if(h===v) tie++;
+    }
+  } else if(need===2){
+    var pair=[0,0];
+    for(i=0;i<deck.length;i++) for(j=i+1;j<deck.length;j++){
+      pair[0]=deck[i]; pair[1]=deck[j];
+      hn=fill(_hb,hero,board,pair); vn=fill(_vb,villain,board,pair);
+      h=evalCards(_hb,hn); v=evalCards(_vb,vn); cnt++;
+      if(h>v) win++; else if(h===v) tie++;
+    }
+  } else return null;
+  return {eq:(win+tie/2)/cnt, method:'exact', se:0, win:win, tie:tie, lose:cnt-win-tie, n:cnt};
+}
+
+/* Monte Carlo equity, used preflop where exact is 1.7M boards. */
+function mcEq(hero,villain,board,N,rng){
+  var deck=remaining(hero.concat(villain,board));
+  var need=5-board.length, win=0,tie=0,run=new Array(need),it,k,j,t,hn,vn,h,v;
+  for(it=0;it<N;it++){
+    for(k=0;k<need;k++){
+      j=k+((rng()*(deck.length-k))|0);
+      t=deck[k]; deck[k]=deck[j]; deck[j]=t;
+      run[k]=deck[k];
+    }
+    hn=fill(_hb,hero,board,run); vn=fill(_vb,villain,board,run);
+    h=evalCards(_hb,hn); v=evalCards(_vb,vn);
+    if(h>v) win++; else if(h===v) tie++;
+  }
+  var p=(win+tie/2)/N;
+  return {eq:p, method:'mc', se:Math.sqrt(p*(1-p)/N), win:win, tie:tie, lose:N-win-tie, n:N};
+}
+
+/* Combos of a starting-hand class still available, given the cards we can see.
+   cls is {a:rank, b:rank, suited:0|1|2} with 2 meaning "any" for a pair.
+   This is the arithmetic the combos drill grades. */
+function comboCount(a,b,suited,seen){
+  var seenMask=[0,0,0,0],i,c;                        // per suit, which ranks are gone
+  for(i=0;i<seen.length;i++){ c=seen[i]; seenMask[c&3]|=1<<(c>>2); }
+  var freeA=0,freeB=0,s,n=0;
+  for(s=0;s<4;s++){
+    if(!(seenMask[s]&(1<<a))) freeA|=1<<s;
+    if(!(seenMask[s]&(1<<b))) freeB|=1<<s;
+  }
+  var cntA=POP4(freeA),cntB=POP4(freeB);
+  if(a===b) return cntA*(cntA-1)/2;                  // a pocket pair
+  if(suited===1){                                    // same suit only
+    for(s=0;s<4;s++) if((freeA&(1<<s))&&(freeB&(1<<s))) n++;
+    return n;
+  }
+  if(suited===0) return cntA*cntB-(function(){       // offsuit only
+    var k=0,q; for(q=0;q<4;q++) if((freeA&(1<<q))&&(freeB&(1<<q))) k++; return k;
+  })();
+  return cntA*cntB;                                  // suited and offsuit together
+}
+function POP4(m){ return (m&1)+((m>>1)&1)+((m>>2)&1)+((m>>3)&1); }
+
+function equity(hero,villain,board,rng){
+  if(board.length>=3) return enumerateEq(hero,villain,board);
+  return mcEq(hero,villain,board,40000,rng||mulberry32(seedFrom(hero.concat(villain))));
+}
+
+/* Cards that put hero ahead if they land next. */
+function countOuts(hero,villain,board){
+  var deck=remaining(hero.concat(villain,board)),outs=[],i,hn,vn;
+  for(i=0;i<deck.length;i++){
+    hn=fill(_hb,hero,board,[deck[i]]); vn=fill(_vb,villain,board,[deck[i]]);
+    if(evalCards(_hb,hn)>evalCards(_vb,vn)) outs.push(deck[i]);
+  }
+  return outs;
+}
+function ahead(hero,villain,board){
+  var hn=fill(_hb,hero,board),vn=fill(_vb,villain,board);
+  return evalCards(_hb,hn)-evalCards(_vb,vn);
+}
+
+/* ============================================================
+   Ranges. A range is a set of two-card combos, so "villain" is a
+   distribution, not a hand. CLASS_ORDER was generated by this engine
+   (equity of each of the 169 classes against one random hand, MC 12k),
+   not imported from anyone's chart.
+   Caveat worth knowing: ordering by equity-against-random over-ranks
+   small pairs and weak aces relative to a real opening chart, because
+   playability and position are not in it.
+   ============================================================ */
+var CLASS_ORDER=('AA KK QQ JJ TT 99 88 AKs AQs 77 AKo AJs ATs AQo KQs 66 AJo KJs ATo A9s A7s KTs KQo A8s KJo 55 ' +
+'QJs A9o K9s A8o QTs A5s A6s A7o KTo A3s A4s A2s K8s A5o QTo A6o QJo 44 JTs K9o K7s A4o Q9s A3o ' +
+'Q8s K6s J9s K8o K5s K7o K4s Q9o Q7s K6o A2o T9s JTo K3s J8s Q8o Q6s 33 J9o K5o J7s K2s Q5s K3o ' +
+'K4o T8s T9o J8o Q4s Q6o Q3s Q7o J6s K2o 98s T7s 22 Q5o J5s T8o J7o Q2s T6s J4s 97s Q4o 98o 87s ' +
+'J3s 96s Q3o J6o J5o T7o T5s Q2o T6o T4s J2s 97o T3s 86s J4o 87o 85s 95s 76s J2o J3o T2s 96o 94s ' +
+'T5o T4o 75s 65s T3o 93s 86o 95o 84s 92s 76o 64s T2o 74s 85o 83s 54s 94o 75o 93o 84o 82s 73s 63s ' +
+'65o 53s 92o 52s 62s 43s 72s 54o 74o 64o 82o 83o 42s 53o 73o 63o 32s 43o 72o 52o 62o 42o 32o').split(' ');
+
+function classCombos(label,dead){
+  var a=RANKS.indexOf(label[0]),b=RANKS.indexOf(label[1]);
+  var suited = label.length===3 ? label[2]==='s' : null;
+  var mark=new Uint8Array(52),i,s1,s2,c1,c2,out=[];
+  for(i=0;i<dead.length;i++) mark[dead[i]]=1;
+  if(a===b){
+    for(s1=0;s1<4;s1++) for(s2=s1+1;s2<4;s2++){
+      c1=(a<<2)|s1; c2=(a<<2)|s2;
+      if(!mark[c1]&&!mark[c2]) out.push([c1,c2]);
+    }
+  } else {
+    for(s1=0;s1<4;s1++) for(s2=0;s2<4;s2++){
+      if(suited===true?s1!==s2:s1===s2) continue;
+      c1=(a<<2)|s1; c2=(b<<2)|s2;
+      if(!mark[c1]&&!mark[c2]) out.push([c1,c2]);
+    }
+  }
+  return out;
+}
+/* the strongest topPct of all 1326 combos, minus anything we can see */
+function rangeCombos(topPct,dead){
+  var target=1326*topPct/100,cum=0,out=[],i,lab,w;
+  for(i=0;i<CLASS_ORDER.length && cum<target;i++){
+    lab=CLASS_ORDER[i];
+    w = lab.length===2?6:(lab[2]==='s'?4:12);
+    cum+=w;
+    out=out.concat(classCombos(lab,dead));
+  }
+  return out;
+}
+/* the class at the boundary, for describing a range to the user */
+function rangeEdge(topPct){
+  var target=1326*topPct/100,cum=0,i,lab;
+  for(i=0;i<CLASS_ORDER.length;i++){
+    lab=CLASS_ORDER[i];
+    cum += lab.length===2?6:(lab[2]==='s'?4:12);
+    if(cum>=target) return lab;
+  }
+  return CLASS_ORDER[CLASS_ORDER.length-1];
+}
+
+var _deck=new Int32Array(52), _mark=new Uint8Array(52), _run=new Int32Array(5);
+/* Hero against one or more villains, each drawn from its own range.
+   Hero must beat every villain. Ties split. */
+function eqVsRanges(hero,pools,board,N,rng){
+  var nv=pools.length,win=0,tie=0,trials=0,it,i,k,j,x,cand,tries,pick,bad,dn,need,hs,vs,best,nBest,hn,vn;
+  var vh=[];
+  for(k=0;k<nv;k++) vh.push(null);
+  for(it=0;it<N;it++){
+    for(i=0;i<52;i++) _mark[i]=0;
+    for(i=0;i<hero.length;i++) _mark[hero[i]]=1;
+    for(i=0;i<board.length;i++) _mark[board[i]]=1;
+    bad=false;
+    for(k=0;k<nv;k++){
+      pick=null; tries=0;
+      while(tries<60){
+        cand=pools[k][(rng()*pools[k].length)|0];
+        if(!_mark[cand[0]]&&!_mark[cand[1]]){ pick=cand; break; }
+        tries++;
+      }
+      if(!pick){ bad=true; break; }
+      _mark[pick[0]]=1; _mark[pick[1]]=1; vh[k]=pick;
+    }
+    if(bad) continue;
+    dn=0;
+    for(i=0;i<52;i++) if(!_mark[i]) _deck[dn++]=i;
+    need=5-board.length;
+    for(k=0;k<need;k++){
+      j=k+((rng()*(dn-k))|0);
+      x=_deck[k]; _deck[k]=_deck[j]; _deck[j]=x; _run[k]=_deck[k];
+    }
+    hn=fill(_hb,hero,board,subarr(_run,need)); hs=evalCards(_hb,hn);
+    best=-1; nBest=0;
+    for(k=0;k<nv;k++){
+      vn=fill(_vb,vh[k],board,subarr(_run,need)); vs=evalCards(_vb,vn);
+      if(vs>best){ best=vs; nBest=1; } else if(vs===best) nBest++;
+    }
+    trials++;
+    if(hs>best) win++; else if(hs===best) tie+=1/(nBest+1);
+  }
+  var p=trials?(win+tie)/trials:0;
+  return {eq:p,method:'mc',se:Math.sqrt(Math.max(p*(1-p),1e-9)/Math.max(trials,1)),
+          win:win,tie:tie,lose:trials-win-tie,n:trials};
+}
+var _sub=[[],[0],[0,0],[0,0,0],[0,0,0,0],[0,0,0,0,0]];
+function subarr(a,n){ var s=_sub[n],i; for(i=0;i<n;i++) s[i]=a[i]; return s; }
+
+/* Cards that improve hero's hand but still lose. These are the "dead outs"
+   a novice counts and a good player discounts. */
+function deadOuts(hero,villain,board){
+  var deck=remaining(hero.concat(villain,board)),out=[],i,base,hs,vs;
+  base=evalCards(_hb,fill(_hb,hero,board))>>>20;
+  for(i=0;i<deck.length;i++){
+    hs=evalCards(_hb,fill(_hb,hero,board,[deck[i]]));
+    vs=evalCards(_vb,fill(_vb,villain,board,[deck[i]]));
+    if((hs>>>20)>base && hs<vs) out.push(deck[i]);
+  }
+  return out;
+}
+
+/* ---- the arithmetic the drills grade ---- */
+function reqEquity(P,b){ return b/(P+2*b); }          // call/(pot+call)
+function mdf(P,b){ return P/(P+b); }
+function alpha(P,b){ return b/(P+b); }
+function bluffShare(P,b){ return b/(P+2*b); }
+function evCall(eq,P,b){ return eq*(P+b)-(1-eq)*b; }  // = eq*(P+2b) - b
+</script>
+
+<script id="drills">
+'use strict';
+/* ============================================================
+   Drill definitions. DOM-free on purpose so test/node_test.js
+   can generate and grade every drill without a browser.
+
+   Each drill carries an `about` block (goal / how / example) that the UI
+   shows the first time you open it, so a drill is never a mystery.
+   ============================================================ */
+buildTables();
+
+var TOL_EQ=3, TOL_ODDS=2, TOL_RANGE_EQ=4, MAX_WIDTH=12;
+var pct=function(x){ return Math.round(x*1000)/10; };
+var one=function(x){ return (Math.round(x*10)/10).toFixed(1); };
+
+function dealDistinct(rng,n,dead){
+  var mark=new Uint8Array(52),out=[],c,i;
+  for(i=0;i<dead.length;i++) mark[dead[i]]=1;
+  while(out.length<n){
+    c=(rng()*52)|0;
+    if(!mark[c]){ mark[c]=1; out.push(c); }
+  }
+  return out;
+}
+var POTS=[20,30,40,50,60,80,100,120,150,200,250,300];
+var FRACS=[[1,3,'a third of the pot'],[1,2,'half the pot'],[2,3,'two thirds'],[3,4,'three quarters'],[1,1,'the pot'],[3,2,'1.5x pot'],[2,1,'2x pot']];
+function pickPot(rng){ return POTS[(rng()*POTS.length)|0]; }
+function pickBet(rng,P){
+  if(rng()<0.55){ var f=FRACS[(rng()*FRACS.length)|0]; return {b:Math.round(P*f[0]/f[1]),label:f[2]}; }
+  var b=Math.max(5,Math.round(P*(0.2+rng()*1.6)/5)*5);
+  return {b:b,label:null};
+}
+var RANGE_PCTS=[5,10,15,20,25,30,40,50];
+function pickRange(rng){ return RANGE_PCTS[(rng()*RANGE_PCTS.length)|0]; }
+function rangeLabel(p){ return 'top '+p+'% (down to '+rangeEdge(p)+')'; }
+function countSeen(rank,seen){
+  var k=0,i;
+  for(i=0;i<seen.length;i++) if((seen[i]>>2)===rank) k++;
+  return k;
+}
+function comboName(st){
+  if(st.a===st.b) return RANKS[st.a]+RANKS[st.b];
+  return RANKS[st.a]+RANKS[st.b]+(st.suited===1?' suited':st.suited===0?' offsuit':' (any suit)');
+}
+
+var DRILLS={
+
+outs:{
+  name:'Outs and the rule of 2 and 4',
+  about:{
+    goal:'Count how many cards improve you to the best hand, then convert that count into a probability in your head.',
+    how:'Villain’s hand is face-up in this one drill, and only this one. You cannot tell which of your outs are dead without knowing what beats you, and spotting dead outs is the whole skill here. Every other drill hides villain behind a range.',
+    example:'You hold A♥K♥ on Q♥7♥2♣ against Q♠Q♦. Nine hearts are left, but the 2♥ gives villain queens full, so you have 8 clean outs, not 9. Two cards to come: 8×4 = 32%, and the exact figure is 32.7%.'
+  },
+  generate:function(rng){
+    for(var tries=0;tries<4000;tries++){
+      var street=rng()<0.6?3:4;
+      var d=dealDistinct(rng,4+street,[]);
+      var hero=d.slice(0,2),vil=d.slice(2,4),board=d.slice(4);
+      if(ahead(hero,vil,board)>=0) continue;
+      var o=countOuts(hero,vil,board);
+      if(o.length<2||o.length>15) continue;
+      var e=enumerateEq(hero,vil,board);
+      var U=52-4-board.length, two=board.length===3;
+      var pHit = two ? 1-((U-o.length)*(U-o.length-1))/(U*(U-1)) : o.length/U;
+      return {hero:hero,vil:vil,board:board,outs:o,eq:e,U:U,pHit:pHit};
+    }
+    return null;
+  },
+  questions:function(st){
+    return [
+      {prompt:'How many outs do you have?',kind:'int',answer:st.outs.length,tol:0,unit:''},
+      {prompt:'Chance you hit at least one out by the river?',kind:'int',answer:pct(st.pHit),tol:TOL_EQ,unit:'%'}
+    ];
+  },
+  explain:function(st){
+    var o=st.outs.length,U=st.U,two=st.board.length===3;
+    var rough=two?4*o:2*o, corr=two&&o>8?4*o-(o-8):rough;
+    var s='<code>'+o+' outs</code>, '+(two?'two cards to come':'one card to come')+'. ';
+    s+='Rule of '+(two?'4':'2')+': '+o+'×'+(two?4:2)+' = '+rough+'%';
+    if(two&&o>8) s+=', corrected <code>4o−(o−8)</code> = '+corr+'%';
+    s+='. Exact with <code>U='+U+'</code> unseen: <b>'+one(st.pHit*100)+'%</b>.';
+    if(o>9) s+=' <span class="dim">Above 9 outs both rules drift, so memorise anchors instead: 9 outs ≈ 35%, 12 ≈ 45%, 15 ≈ 54%.</span>';
+    s+='<br><br><b>Your actual equity is '+one(st.eq.eq*100)+'%.</b> ';
+    var gap=st.pHit*100-st.eq.eq*100;
+    if(gap>1.5) s+='Lower than your hit chance, because on some of those boards villain redraws past you with the other card. Hitting is not winning.';
+    else if(gap<-1.5) s+='Higher than your hit chance, because you also win boards no single out covers: backdoor draws, counterfeits and chops.';
+    else s+='Here the two happen to agree.';
+    s+='<br><span class="dim">U counts villain’s two cards as seen. The textbook rule assumes U=47, villain unknown, about 1.4 points higher on a flush draw.</span>';
+    return s;
+  }
+},
+
+potodds:{
+  name:'Pot odds',
+  about:{
+    goal:'Turn a bet size into the minimum equity that makes calling break even. This is the number you compare every equity estimate against.',
+    how:'Pot P is the pot before villain bets. He bets b. You must win <code>b/(P+2b)</code> of the time to break even, because you risk b to win the final pot of P+2b.',
+    example:'Pot 100, he bets 50. You risk 50 to win 150, so you need 50/200 = 25%. Learn the table: a third of pot needs 20%, half needs 25%, two thirds 28.6%, pot 33.3%, twice pot 40%.'
+  },
+  generate:function(rng){
+    var P=pickPot(rng),bt=pickBet(rng,P);
+    return {P:P,b:bt.b,label:bt.label};
+  },
+  questions:function(st){
+    return [{prompt:'What equity do you need to call?',kind:'int',answer:pct(reqEquity(st.P,st.b)),tol:TOL_ODDS,unit:'%'}];
+  },
+  explain:function(st){
+    var s='<code>b/(P+2b)</code> = '+st.b+'/('+st.P+'+'+(2*st.b)+') = '+st.b+'/'+(st.P+2*st.b)+' = <b>'+one(reqEquity(st.P,st.b)*100)+'%</b>.';
+    s+='<br>By bet size: ⅓ pot 20% · ½ 25% · ⅔ 28.6% · ¾ 30% · pot 33.3% · 1.5x 37.5% · 2x 40%.';
+    s+='<br><span class="dim">Same number, other seat: this is also the share of his betting range that should be bluffs at equilibrium.</span>';
+    return s;
+  }
+},
+
+combos:{
+  name:'Combo counting and blockers',
+  about:{
+    goal:'Count how many ways villain can hold a given hand, after removing the cards you and the board can see. This is the arithmetic behind blockers and value-to-bluff ratios.',
+    how:'Start from the unblocked total, then knock out a factor for every card you can see. Pair: C(4,2)=6. Unpaired any suit: 4×4=16. Offsuit only: 12. Suited only: 4.',
+    example:'How many AK does he have on a K♠7♥2♦ board while you hold K♦Q♦? Aces are all live (4), but two kings are gone, leaving 2. So 4×2 = 8 combos of AK, down from 16.'
+  },
+  generate:function(rng){
+    for(var tries=0;tries<3000;tries++){
+      var street=rng()<0.6?3:4;
+      var d=dealDistinct(rng,2+street,[]);
+      var hero=d.slice(0,2),board=d.slice(2);
+      var seen=hero.concat(board);
+      var a=(rng()*13)|0,b,suited,kind=rng();
+      if(kind<0.4){ b=a; suited=2; }
+      else { do{ b=(rng()*13)|0; }while(b===a); suited=rng()<0.45?1:0; }
+      if(a<b){ var t=a; a=b; b=t; }
+      var n=comboCount(a,b,suited,seen);
+      if(n===0) continue;
+      var full=comboCount(a,b,suited,[]);
+      if(n===full && rng()<0.75) continue;      // prefer spots where removal bites
+      return {hero:hero,board:board,a:a,b:b,suited:suited,answer:n,full:full,seen:seen};
+    }
+    return null;
+  },
+  questions:function(st){
+    return [{prompt:'How many combos of '+comboName(st)+' can villain have?',kind:'int',answer:st.answer,tol:0,unit:''}];
+  },
+  explain:function(st){
+    var seenA=countSeen(st.a,st.seen),seenB=countSeen(st.b,st.seen),s='';
+    if(st.a===st.b){
+      var left=4-seenA;
+      s+='Unblocked a pair is <code>C(4,2) = 6</code>. You can see '+seenA+' of the '+RANKS[st.a]+'s, leaving '+left+', so <code>C('+left+',2) = <b>'+st.answer+'</b></code>.';
+    } else if(st.suited===1){
+      s+='A suited hand is 4 combos, one per suit, and survives only in suits where both cards are live. That is <b>'+st.answer+'</b> here.';
+    } else {
+      var la=4-seenA,lb=4-seenB;
+      s+='Unblocked '+(st.suited===0?'offsuit is <code>4×4−4 = 12</code>':'any-suit is <code>4×4 = 16</code>')+'. ';
+      s+='You see '+seenA+' '+RANKS[st.a]+' and '+seenB+' '+RANKS[st.b]+', leaving '+la+' and '+lb+', giving <b>'+st.answer+'</b>.';
+    }
+    s+='<br>Hold cold: <b>pair 6</b> · <b>any suit 16</b> · <b>offsuit 12</b> · <b>suited 4</b>.';
+    s+='<br><span class="dim">Why it matters: if he needs 30% bluffs and has 12 value combos, he needs about 5 bluff combos. Counting them is how you know whether he is bluffing enough.</span>';
+    return s;
+  }
+},
+
+equity:{
+  name:'Equity against a range',
+  about:{
+    goal:'Estimate your equity against what villain could actually hold, not against one hand you imagined. This is the real table skill.',
+    how:'Villain is given as a range, for example the top 15% of hands. Your equity is the average over every hand in that range, weighted by how many combos of each he can hold. More villains means you must beat all of them, so your equity falls fast.',
+    example:'A♠K♥ against one top-10% range is roughly 45%, because that range is full of big pairs. The same A♠K♥ against three separate top-30% ranges is closer to 30%, since somebody usually connects.'
+  },
+  generate:function(rng){
+    for(var tries=0;tries<2000;tries++){
+      var nv = rng()<0.55?1:(rng()<0.6?2:3);
+      var flop = rng()<0.45;
+      var d=dealDistinct(rng,flop?5:2,[]);
+      var hero=d.slice(0,2),board=flop?d.slice(2):[];
+      var pools=[],pcts=[],i,p;
+      for(i=0;i<nv;i++){
+        p=pickRange(rng); pcts.push(p);
+        pools.push(rangeCombos(p,hero.concat(board)));
+        if(!pools[i].length) break;
+      }
+      if(pools.length<nv||!pools[nv-1].length) continue;
+      var e=eqVsRanges(hero,pools,board,nv===1?24000:16000,mulberry32(seedFrom(d.concat(pcts))));
+      if(e.n<1000) continue;
+      return {hero:hero,board:board,nv:nv,pcts:pcts,eq:e};
+    }
+    return null;
+  },
+  questions:function(st){
+    return [{prompt:'Your equity against '+(st.nv===1?'that range':'all '+st.nv+' of them')+'?',
+             kind:'int',answer:pct(st.eq.eq),tol:TOL_RANGE_EQ,unit:'%'}];
+  },
+  explain:function(st){
+    var s='<b>'+one(st.eq.eq*100)+'%</b> against '+st.pcts.map(rangeLabel).join(' and ')+'. ';
+    s+='<span class="dim">Monte Carlo, '+st.eq.n.toLocaleString()+' trials, standard error '+one(st.eq.se*100)+' points.</span><br>';
+    if(st.nv===1){
+      s+='Anchors for one opponent: a big pair against a tight range is near a coin flip because he holds pairs too; ';
+      s+='two big cards against a tight range sit around 40 to 46%; any hand against a wide range climbs toward 55 to 65%.';
+    } else {
+      s+='With '+st.nv+' opponents you must beat every one of them, so equities multiply rather than add. ';
+      s+='A hand worth 65% heads-up is often near '+Math.round(Math.pow(0.65,st.nv)*100)+'% against '+st.nv+'. ';
+      s+='This is why marginal hands that are fine heads-up are unplayable multiway.';
+    }
+    s+='<br><span class="dim">The range is the strongest X% of all 1326 combos, ordered by equity against a random hand, with your cards and the board removed. Real opening charts differ a little because they also price in position and playability.</span>';
+    return s;
+  }
+},
+
+callfold:{
+  name:'Call or fold against a range',
+  about:{
+    goal:'Put the two halves together under time pressure: estimate your equity against his range, compare it to the price, and act.',
+    how:'Estimate your equity, work out the required equity from the bet size, then call if equity beats the price. You are graded only on the decision, because that is the only part you can actually do in your head at the table.',
+    example:'Pot 100, he bets 50, so you need 25%. If you judge your equity against his range to be about 35%, you call. The exact number does not matter, only which side of 25% it falls on.'
+  },
+  generate:function(rng){
+    for(var tries=0;tries<2000;tries++){
+      var flop = rng()<0.6;
+      var d=dealDistinct(rng,flop?5:2,[]);
+      var hero=d.slice(0,2),board=flop?d.slice(2):[];
+      var p=pickRange(rng);
+      var pool=rangeCombos(p,hero.concat(board));
+      if(!pool.length) continue;
+      var e=eqVsRanges(hero,[pool],board,24000,mulberry32(seedFrom(d.concat([p]))));
+      if(e.n<1000) continue;
+      var P=pickPot(rng),bt=pickBet(rng,P),req=reqEquity(P,bt.b);
+      if(Math.abs(e.eq-req)<0.035) continue;      // keep the decision clear of the noise
+      return {hero:hero,board:board,pcts:[p],nv:1,eq:e,P:P,b:bt.b,label:bt.label,req:req};
+    }
+    return null;
+  },
+  questions:function(st){
+    return [{prompt:'He bets. Call or fold?',kind:'choice',choices:['Call','Fold'],
+             answer:st.eq.eq>st.req?'Call':'Fold',tol:0,unit:''}];
+  },
+  explain:function(st){
+    var ev=evCall(st.eq.eq,st.P,st.b);
+    var s='Required <code>b/(P+2b) = '+st.b+'/'+(st.P+2*st.b)+' = <b>'+one(st.req*100)+'%</b></code>. ';
+    s+='Your equity against '+rangeLabel(st.pcts[0])+' is <b>'+one(st.eq.eq*100)+'%</b>, ';
+    s+='so <b>'+(st.eq.eq>st.req?'call':'fold')+'</b> by '+one(Math.abs(st.eq.eq-st.req)*100)+' points.<br>';
+    s+='<code>EV(call) = E(P+b) − (1−E)b</code> = '+one(ev)+' chips'+(ev>0?'':' (negative, hence the fold)')+'.';
+    s+='<br><span class="dim">You are not graded on the EV in chips. That needs equity to a point or two, which nobody does mentally. The side of the threshold is the decision, and it is robust to a sloppy estimate.</span>';
+    return s;
+  }
+},
+
+bluff:{
+  name:'Bluff frequency and MDF',
+  about:{
+    goal:'Work out, from a bet size alone, how often a bettor should be bluffing and how much of his range a defender must call.',
+    how:'Bluff <code>b/(P+2b)</code> of your betting range and his call breaks even. He defends <code>P/(P+b)</code> and your bluff breaks even. Each side makes the other indifferent, which is what equilibrium means.',
+    example:'Betting the pot: bluff a third of your betting range, and he must defend half of his. Betting half pot: bluff a quarter, he defends two thirds. Bet smaller and you bluff less but he has to call more.'
+  },
+  generate:function(rng){
+    var P=pickPot(rng),bt=pickBet(rng,P);
+    return {P:P,b:bt.b,label:bt.label};
+  },
+  questions:function(st){
+    return [
+      {prompt:'You bet. What share of your betting range should be bluffs?',kind:'int',answer:pct(bluffShare(st.P,st.b)),tol:TOL_ODDS,unit:'%'},
+      {prompt:'What share of his range must he defend?',kind:'int',answer:pct(mdf(st.P,st.b)),tol:TOL_ODDS,unit:'%'}
+    ];
+  },
+  explain:function(st){
+    var s='Betting <code>'+st.b+'</code> into <code>'+st.P+'</code>.<br>';
+    s+='Bluff <code>b/(P+2b)</code> = <b>'+one(bluffShare(st.P,st.b)*100)+'%</b> of your betting range. ';
+    s+='He defends <code>P/(P+b)</code> = <b>'+one(mdf(st.P,st.b)*100)+'%</b>. ';
+    s+='Your bluff needs him to fold <code>α = b/(P+b)</code> = '+one(alpha(st.P,st.b)*100)+'%.<br>';
+    s+='<b>The identity:</b> your bluff share equals his required equity to call. One number, both seats.';
+    s+='<br><span class="dim">MDF is the bound for a bluff with no equity. Real equilibria defend a little less, because a check still has value. The [0,1] toy game gives 4/9 against a pot bet, not 1/2.</span>';
+    return s;
+  }
+},
+
+market:{
+  name:'Make a market on equity',
+  about:{
+    goal:'Quote a two-sided price instead of a point estimate. This is the SIG and Optiver interview format, and the honest way to express an estimate you are unsure of.',
+    how:'Type a bid, then an ask. You are scored on two things at once: the true value must fall inside your quote, and your quote must be tight enough to be useful. Wide quotes are safe and worthless.',
+    example:'If you think your equity is about 45% and you are fairly confident, quote 41 / 49. If you have no idea, 30 / 60 keeps you safe but scores as too wide. A quote over 12 points wide is not information.'
+  },
+  generate:function(rng){
+    for(var tries=0;tries<2000;tries++){
+      var flop=rng()<0.5;
+      var d=dealDistinct(rng,flop?5:2,[]);
+      var hero=d.slice(0,2),board=flop?d.slice(2):[];
+      var p=pickRange(rng),pool=rangeCombos(p,hero.concat(board));
+      if(!pool.length) continue;
+      var e=eqVsRanges(hero,[pool],board,24000,mulberry32(seedFrom(d.concat([p,9]))));
+      if(e.n<1000) continue;
+      if(Math.min(e.eq,1-e.eq)<0.05) continue;
+      return {hero:hero,board:board,pcts:[p],nv:1,eq:e};
+    }
+    return null;
+  },
+  questions:function(st){
+    return [{prompt:'Make a two-way market on your equity.',kind:'market',
+             answer:pct(st.eq.eq),tol:MAX_WIDTH,unit:'%'}];
+  },
+  explain:function(st){
+    var t=pct(st.eq.eq);
+    var s='True equity <b>'+one(st.eq.eq*100)+'%</b> against '+rangeLabel(st.pcts[0])+'. ';
+    s+='<span class="dim">MC, se '+one(st.eq.se*100)+' points.</span><br>';
+    s+='A decent quote here is about <code>'+Math.max(0,Math.round(t)-4)+' / '+Math.min(100,Math.round(t)+4)+'</code>, eight points wide. ';
+    s+='Onside means the true value sits inside your quote. Width is what you admit you do not know, so tighten it as far as you honestly can. ';
+    s+='Over '+MAX_WIDTH+' points wide scores as no information.';
+    s+='<br><span class="dim">On a desk the same trade-off is priced every second: quote tight and win flow but get picked off by anyone better informed, quote wide and never trade. Master Textbook Ch. 51.3.</span>';
+    return s;
+  }
+}
+
+};
+</script>
+
+<script id="ui">
+'use strict';
+/* ============================================================
+   Grading, progress, keypad, rendering
+   ============================================================ */
+
+/* seconds you should be aiming for, per question */
+var TARGETS={potodds:8,bluff:10,combos:12,callfold:12,equity:15,outs:20,market:20};
+
+/* ---- stats ---- */
+var SKEY='pk-stats-v1',AKEY='pk-seen-v1';
+function loadStats(){ try{ return JSON.parse(localStorage.getItem(SKEY))||{}; }catch(e){ return {}; } }
+function saveStats(s){ try{ localStorage.setItem(SKEY,JSON.stringify(s)); }catch(e){} }
+function seenDrills(){ try{ return (localStorage.getItem(AKEY)||'').split(','); }catch(e){ return []; } }
+function markSeen(id){
+  try{
+    var a=seenDrills();
+    if(a.indexOf(id)<0){ a.push(id); localStorage.setItem(AKEY,a.join(',')); }
+  }catch(e){}
+}
+function record(id,ok,secs){
+  var s=loadStats(),r=s[id]||{n:0,c:0,last:'',streak:0,best:0,tsum:0,tn:0};
+  r.n++; if(ok){ r.c++; r.streak++; if(r.streak>r.best) r.best=r.streak; } else r.streak=0;
+  r.last=(r.last+(ok?'1':'0')).slice(-20);
+  if(secs>0&&secs<600){ r.tsum=(r.tsum||0)+secs; r.tn=(r.tn||0)+1; }
+  s[id]=r; saveStats(s);
+}
+function renderStats(){
+  var s=loadStats(),rows='',ids=Object.keys(DRILLS),i,r,l20,avg;
+  for(i=0;i<ids.length;i++){
+    r=s[ids[i]];
+    l20 = r&&r.last ? Math.round(100*r.last.replace(/0/g,'').length/r.last.length)+'%' : '&ndash;';
+    avg = r&&r.tn ? (r.tsum/r.tn).toFixed(0)+'s' : '&ndash;';
+    rows+='<tr><td>'+DRILLS[ids[i]].name+'</td><td>'+(r?r.n:0)+'</td><td>'+
+      (r&&r.n?Math.round(100*r.c/r.n)+'%':'&ndash;')+'</td><td>'+l20+'</td><td>'+avg+
+      ' <span class="dim">/'+TARGETS[ids[i]]+'</span></td><td>'+(r?r.streak:0)+'</td></tr>';
+  }
+  $('stats').innerHTML=
+    '<table><thead><tr><th>Drill</th><th>n</th><th>acc</th><th>last 20</th><th>time</th><th>streak</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table>'+
+    '<button class="ghost" id="reset" style="margin-top:10px">Reset stats</button>'+
+    '<div class="ver">v'+VERSION+'</div>';
+  $('reset').onclick=function(){
+    if(confirm('Clear all drill history?')){ saveStats({}); renderStats(); }
+  };
+}
+
+/* ---- state ---- */
+var S={id:'outs',st:null,qs:[],qi:0,typed:'',choice:null,mkt:null,phase:'ask',t0:0,secs:0};
+var rng=mulberry32((Date.now()^0x9e3779b9)>>>0);
+function $(x){ return document.getElementById(x); }
+var esc=function(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+
+function showAbout(on){
+  var a=DRILLS[S.id].about,el=$('about');
+  if(!on){ el.className=''; return; }
+  el.innerHTML='<h3>'+esc(DRILLS[S.id].name)+'</h3>'+
+    '<p><b>What it trains.</b> '+a.goal+'</p>'+
+    '<p><b>How.</b> '+a.how+'</p>'+
+    '<p class="eg"><b>Example.</b> '+a.example+'</p>';
+  el.className='on';
+}
+
+function nextHand(){
+  var d=DRILLS[S.id];
+  var st=d.generate(rng);
+  if(!st){ $('situation').innerHTML='<div class="lbl">could not deal a spot, try again</div>'; return; }
+  S.st=st; S.qs=d.questions(st); S.qi=0;
+  S.typed=''; S.choice=null; S.mkt={bid:'',ask:'',side:'bid'}; S.phase='ask';
+  $('situation').classList.add('fade'); $('prompt').classList.add('fade');
+  draw();
+  setTimeout(function(){ $('situation').classList.remove('fade'); $('prompt').classList.remove('fade'); },20);
+}
+function handHtml(cards){
+  return cards.map(function(c){
+    return '<span class="card'+(isRed(c)?' red':'')+'">'+cardStr(c).replace('T','10')+'</span>';
+  }).join('');
+}
+function badgeHtml(cards,dead){
+  return '<div class="outs">'+cards.map(function(c){
+    return '<span class="out'+(dead?' dead':'')+(isRed(c)?' red':'')+'">'+cardStr(c)+'</span>';
+  }).join('')+'</div>';
+}
+function barHtml(e){
+  var w=e.win/e.n*100,t=(e.tie/e.n)*100,l=100-w-t;
+  var seg=function(cls,v,lab){ return v<0.5?'':'<span class="'+cls+'" style="flex:'+v+'">'+(v>11?lab:'')+'</span>'; };
+  return '<div class="bar">'+seg('w',w,'win '+Math.round(w)+'%')+seg('t',t,'tie '+Math.round(t)+'%')+
+    seg('l',l,'lose '+Math.round(l)+'%')+'</div>'+
+    '<div class="barkey">win '+one(w)+'%  ·  tie '+one(t)+'%  ·  lose '+one(l)+'%  ·  equity = win + tie/2 = '+one(e.eq*100)+'%</div>';
+}
+function draw(){
+  var st=S.st,h='';
+  if(st.hero){
+    h+='<div class="lbl">your hand</div><div class="hand">'+handHtml(st.hero)+'</div>';
+    if(st.board&&st.board.length) h+='<div class="lbl">board</div><div class="hand">'+handHtml(st.board)+'</div>';
+    if(st.vil) h+='<div class="lbl">villain shows</div><div class="hand">'+handHtml(st.vil)+'</div>';
+    if(st.pcts) h+='<div class="lbl">villain'+(st.nv>1?'s':'')+'</div><div class="money">'+
+      st.pcts.map(function(p,i){ return (st.nv>1?('#'+(i+1)+' '):'')+'<b>'+rangeLabel(p)+'</b>'; }).join('<br>')+'</div>';
+  }
+  if(st.P!==undefined){
+    h+='<div class="money" style="margin-top:8px">Pot <b>'+st.P+'</b> &nbsp;·&nbsp; Bet <b>'+st.b+'</b>'+
+       (st.label?' <span class="dim">('+st.label+')</span>':'')+'</div>';
+  }
+  $('situation').innerHTML=h;
+
+  var q=S.qs[S.qi];
+  $('prompt').innerHTML=(q?esc(q.prompt):'')+
+    (S.qs.length>1?' <span class="dim">('+(S.qi+1)+' of '+S.qs.length+')</span>':'');
+  var a=$('ans');
+  if(S.phase==='ask'){
+    if(q.kind==='choice'){ a.className=S.choice?'':'empty'; a.innerHTML=S.choice||'&mdash;'; }
+    else if(q.kind==='market'){
+      var b=S.mkt.bid||'&middot;&middot;',k=S.mkt.ask||'&middot;&middot;';
+      a.className=(S.mkt.bid||S.mkt.ask)?'':'empty';
+      a.innerHTML=(S.mkt.side==='bid'?'<u>'+b+'</u>':b)+' <span class="unit">/</span> '+(S.mkt.side==='ask'?'<u>'+k+'</u>':k);
+    }
+    else { a.className=S.typed?'':'empty'; a.innerHTML=(S.typed||'&mdash;')+(S.typed&&q.unit?'<span class="unit">'+q.unit+'</span>':''); }
+    $('fb').className='';
+    S.t0=Date.now();
+  }
+  pad();
+}
+function gradeNow(){
+  var q=S.qs[S.qi],user,ok,extra='';
+  S.secs=(Date.now()-S.t0)/1000;
+  if(q.kind==='choice'){ if(!S.choice) return; user=S.choice; ok=(user===q.answer); }
+  else if(q.kind==='market'){
+    var bid=parseInt(S.mkt.bid,10),ask=parseInt(S.mkt.ask,10);
+    if(isNaN(bid)||isNaN(ask)) return;
+    if(ask<bid){ var t=bid; bid=ask; ask=t; }
+    var width=ask-bid,onside=(q.answer>=bid&&q.answer<=ask);
+    ok=onside&&width<=q.tol;
+    user=bid+' / '+ask;
+    extra=' &nbsp; '+(onside?'<span class="ok">onside</span>':'<span class="no">picked off</span>')+
+          ' &nbsp; width <b>'+width+'</b>'+(width>q.tol?' <span class="no">too wide</span>':'');
+  }
+  else{
+    if(S.typed===''||S.typed==='-') return;
+    user=parseInt(S.typed,10); if(isNaN(user)) return;
+    ok=Math.abs(user-q.answer)<=q.tol;
+  }
+  record(S.id,ok,S.secs);
+
+  var tgt=TARGETS[S.id]||15,slow=S.secs>tgt;
+  var h='<div class="row">you <b>'+user+(q.kind==='int'?q.unit:'')+'</b>';
+  if(q.kind!=='choice') h+=' &nbsp; answer <b>'+q.answer+q.unit+'</b>';
+  if(q.kind==='int'){
+    var e=user-q.answer;
+    h+=' &nbsp; error <b>'+(e>0?'+':'')+e+q.unit+'</b>';
+    if(q.tol>0) h+=' <span class="dim">(tol &plusmn;'+q.tol+')</span>';
+  }
+  h+=extra;
+  h+=' &nbsp; <span class="'+(ok?'ok':'no')+'">'+(ok?'✓':'✗')+'</span>';
+  h+=' &nbsp; <span class="'+(slow?'no':'dim')+'">'+S.secs.toFixed(1)+'s'+(slow?' (target '+tgt+'s)':'')+'</span></div>';
+
+  // the visual, and then the method, on every question, right or wrong
+  var st=S.st,vis='';
+  if(st.eq&&st.eq.n) vis+=barHtml(st.eq);
+  if(S.id==='outs'){
+    vis+='<div class="barkey">live outs</div>'+badgeHtml(st.outs,false);
+    var dead=deadOuts(st.hero,st.vil,st.board);
+    if(dead.length) vis+='<div class="barkey">improve you but still lose ('+dead.length+
+      (dead.length>8?', first 8':'')+')</div>'+badgeHtml(dead.slice(0,8),true);
+  }
+  h+='<div class="method">'+vis+DRILLS[S.id].explain(st)+'</div>';
+  $('fb').innerHTML=h; $('fb').className='on';
+  S.phase='graded'; pad();
+}
+function advance(){
+  if(S.qi<S.qs.length-1){
+    S.qi++; S.typed=''; S.choice=null; S.mkt={bid:'',ask:'',side:'bid'}; S.phase='ask'; draw();
+  } else nextHand();
+}
+function pad(){
+  var q=S.qs[S.qi],p=$('pad'),h='';
+  if(S.phase==='graded'){
+    p.className='';
+    p.innerHTML='<button class="go wide" data-k="next">'+(S.qi<S.qs.length-1?'Next question':'Next hand')+'</button>';
+  } else if(q.kind==='choice'){
+    p.className='choice';
+    p.innerHTML=q.choices.map(function(c){ return '<button data-c="'+c+'">'+c+'</button>'; }).join('');
+  } else {
+    p.className='';
+    ['1','2','3','4','5','6','7','8','9', q.kind==='market'?'/':'-', '0','⌫'].forEach(function(k){
+      h+='<button data-k="'+k+'">'+k+'</button>';
+    });
+    h+='<button class="go wide" data-k="ok">Check</button>';
+    p.innerHTML=h;
+  }
+  Array.prototype.forEach.call(p.querySelectorAll('button'),function(b){
+    b.onclick=function(){
+      if(b.dataset.c){ S.choice=b.dataset.c; gradeNow(); return; }
+      key(b.dataset.k);
+    };
+  });
+}
+function key(k){
+  if(S.phase==='graded'){ if(k==='next'||k==='ok') advance(); return; }
+  var q=S.qs[S.qi];
+  if(q.kind==='choice') return;
+  if(k==='ok'){ gradeNow(); return; }
+  if(q.kind==='market'){
+    var side=S.mkt.side;
+    if(k==='/'){ S.mkt.side = side==='bid'?'ask':'bid'; }
+    else if(k==='⌫'||k==='back'){ S.mkt[side]=S.mkt[side].slice(0,-1); }
+    else if(/^[0-9]$/.test(k)){
+      if(S.mkt[side].length<3) S.mkt[side]+=k;
+      if(S.mkt[side].length>=2&&side==='bid'&&!S.mkt.ask) S.mkt.side='ask';
+    }
+    draw(); return;
+  }
+  if(k==='⌫'||k==='back'){ S.typed=S.typed.slice(0,-1); }
+  else if(k==='-'){ S.typed=S.typed.charAt(0)==='-'?S.typed.slice(1):'-'+S.typed; }
+  else if(/^[0-9]$/.test(k)){ if(S.typed.replace('-','').length<5) S.typed+=k; }
+  draw();
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter'){ e.preventDefault(); S.phase==='graded'?advance():gradeNow(); }
+  else if(e.key==='Backspace'){ e.preventDefault(); key('back'); }
+  else if(/^[0-9]$/.test(e.key)) key(e.key);
+  else if(e.key==='-'||e.key==='/') key(e.key);
+});
+
+/* Offline support. Only registers on a secure origin, so it is a no-op over
+   plain http:// to a LAN IP and active on GitHub Pages. */
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+}
+
+/* ---- boot ---- */
+(function(){
+  if(/[?&]test=1/.test(location.search)){ runTests(); return; }
+  var sel=$('drill');
+  sel.innerHTML=Object.keys(DRILLS).map(function(id){
+    return '<option value="'+id+'">'+DRILLS[id].name+'</option>';
+  }).join('');
+  sel.value=S.id;
+  sel.onchange=function(){
+    S.id=sel.value;
+    var first=seenDrills().indexOf(S.id)<0;
+    showAbout(first); markSeen(S.id);
+    $('stats').className='';
+    nextHand();
+  };
+  $('aboutBtn').onclick=function(){ showAbout($('about').className!=='on'); };
+  $('statsBtn').onclick=function(){
+    var s=$('stats');
+    if(s.className==='on'){ s.className=''; } else { renderStats(); s.className='on'; }
+  };
+  showAbout(seenDrills().indexOf(S.id)<0); markSeen(S.id);
+  nextHand();
+})();
+
+/* ============================================================
+   ?test=1  on-device smoke test. The exhaustive gold tests live in
+   test/node_test.js; this one checks the things only a real device can:
+   speed on this phone, localStorage, and that every drill renders.
+   ============================================================ */
+function runTests(){
+  var out=[],pass=0,fail=0,t0,ms;
+  function t(name,cond,note){ (cond?pass++:fail++); out.push((cond?'PASS  ':'FAIL  ')+name+(note?'   '+note:'')); }
+  function H(s){ return s.trim().split(/\s+/).map(function(x){
+    return (RANKS.indexOf(x[0].toUpperCase())<<2)|'shdc'.indexOf(x[1].toLowerCase()); }); }
+
+  // evaluator: all C(52,5) hands must land in the right ten buckets
+  t0=performance.now();
+  var counts=[0,0,0,0,0,0,0,0,0],buf=new Int32Array(5),a,b,c,d,e;
+  for(a=0;a<52;a++){ buf[0]=a;
+    for(b=a+1;b<52;b++){ buf[1]=b;
+      for(c=b+1;c<52;c++){ buf[2]=c;
+        for(d=c+1;d<52;d++){ buf[3]=d;
+          for(e=d+1;e<52;e++){ buf[4]=e; counts[evalCards(buf,5)>>>20]++; }}}}}
+  ms=performance.now()-t0;
+  var want=[1302540,1098240,123552,54912,10200,5108,3744,624,40],tot=0,i,allOk=true;
+  for(i=0;i<9;i++){ tot+=counts[i]; if(counts[i]!==want[i]) allOk=false; }
+  t('all 2,598,960 five-card hands categorised correctly',allOk&&tot===2598960,ms.toFixed(0)+' ms on this device');
+
+  // outs anchor
+  var o=countOuts(H('Ah Kh'),H('Qs Qd'),H('Qh 7h 2c'));
+  t('Ah Kh on Qh 7h 2c vs QQ is 8 outs',o.length===8,o.map(cardStr).join(' '));
+  t0=performance.now(); var eq=enumerateEq(H('Ah Kh'),H('Qs Qd'),H('Qh 7h 2c')); ms=performance.now()-t0;
+  t('exact flop equity 25.56% over 990 runouts',eq.n===990&&Math.abs(eq.eq-253/990)<1e-9,
+    (eq.eq*100).toFixed(2)+'%  ['+ms.toFixed(1)+' ms]');
+
+  // speed of the two hot paths on this device
+  t0=performance.now(); mcEq(H('As Ks'),H('Qh Qd'),[],40000,mulberry32(3)); ms=performance.now()-t0;
+  t('Monte Carlo 40k under 250 ms here',ms<250,ms.toFixed(0)+' ms');
+  t0=performance.now();
+  var pool=rangeCombos(20,H('As Ks'));
+  eqVsRanges(H('As Ks'),[pool],[],20000,mulberry32(5)); ms=performance.now()-t0;
+  t('equity vs a range under 400 ms here',ms<400,ms.toFixed(0)+' ms');
+
+  // ranges
+  t('CLASS_ORDER is 169 classes and 1326 combos',
+    CLASS_ORDER.length===169 && rangeCombos(100,[]).length===1326);
+  // arithmetic
+  t('req(100,50)=25, mdf(100,100)=50, bluffShare==reqEquity',
+    Math.abs(reqEquity(100,50)-0.25)<1e-12 && Math.abs(mdf(100,100)-0.5)<1e-12 &&
+    Math.abs(bluffShare(100,80)-reqEquity(100,80))<1e-12);
+  t('combo counts: pair 6, any-suit 16, offsuit 12, suited 4',
+    comboCount(5,5,2,[])===6 && comboCount(12,11,2,[])===16 &&
+    comboCount(12,11,0,[])===12 && comboCount(12,11,1,[])===4);
+
+  // every drill must generate, ask, explain and render
+  var g=mulberry32(7);
+  Object.keys(DRILLS).forEach(function(id){
+    var st=null,err='';
+    try{ st=DRILLS[id].generate(g); }catch(ex){ err=ex.message; }
+    var qs=st?DRILLS[id].questions(st):[];
+    var ex2=''; try{ ex2=st?DRILLS[id].explain(st):''; }catch(ez){ err=ez.message; }
+    var ab=DRILLS[id].about;
+    t('drill '+id+' generates, asks, explains, has an about block',
+      !!st&&qs.length>0&&ex2.length>20&&!!(ab&&ab.goal&&ab.how&&ab.example)&&!err,
+      err||qs.length+' question(s)');
+  });
+
+  // storage
+  var storeOk=false;
+  try{ localStorage.setItem('pk-probe','1'); storeOk=localStorage.getItem('pk-probe')==='1'; localStorage.removeItem('pk-probe'); }catch(ez){}
+  t('localStorage works, so progress will persist',storeOk);
+
+  $('app').innerHTML='<h2 style="font-family:var(--mono);font-size:18px">'+
+    (fail===0?'<span style="color:var(--green)">ALL PASS</span>':'<span style="color:var(--red)">'+fail+' FAILED</span>')+
+    ' <span class="dim">'+pass+'/'+(pass+fail)+' &middot; v'+VERSION+'</span></h2><pre>'+out.join('\n')+'</pre>'+
+    '<p class="dim">Exhaustive tests, including all 133,784,560 seven-card hands, are in test/node_test.js.</p>';
+  $('pad').innerHTML='';
+}
+</script>
+</body>
+</html>
