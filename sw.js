@@ -2,7 +2,7 @@
    Cache-first: the whole app is four small static files, so once it is cached
    the app works with no network at all.
    Bump STATIC_CACHE on every asset change or phones will keep the old build. */
-const STATIC_CACHE = 'poker-static-v4';
+const STATIC_CACHE = 'poker-static-v5';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

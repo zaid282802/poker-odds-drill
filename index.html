@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0d1117">
+<meta name="theme-color" content="#08090b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="author" content="Zaid Annigeri">
@@ -17,157 +17,194 @@ try{document.documentElement.dataset.theme=localStorage.getItem('pk-theme')||'da
 </script>
 <style>
 :root{
-  --bg:#0d1117; --bg-2:#161b22; --surface:#1c2128; --border:#30363d;
-  --text:#e6edf3; --text-2:#8b949e; --muted:#6e7681;
-  --accent:#58a6ff; --green:#3fb950; --red:#f85149;
-  --card-face:#f0f3f6; --card-ink:#161b22; --suit-red:#c9252d;
-  --pad:clamp(12px,4vw,20px); --tap:48px; --padh:clamp(228px,38vh,300px);
-  --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  /* A calibrated instrument, not a website. Warm near-black ground, amber
+     phosphor, bone text. Every colour here is warm-shifted on purpose: the old
+     GitHub blue-grey read as a generic dark theme and nothing else. */
+  --bg:#08090b; --bg-2:#0e1013; --surface:#131619;
+  --line:#22262c; --line-2:#333a42;
+  --text:#e9e4d8; --text-2:#9b978c; --muted:#6a675e;
+  --amber:#f0a23c; --amber-dim:#6d4d1f; --amber-ghost:rgba(240,162,60,.10);
+  --green:#57b46c; --red:#e0564a;
+  --card-face:#e9e1cf; --card-ink:#14161a; --suit-red:#b23129;
+  --pad:clamp(12px,4vw,20px); --tap:48px;
+  --padh:clamp(200px,31vh,248px); --padh-tall:clamp(244px,38vh,296px);
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;
 }
 *{box-sizing:border-box}
 html{color-scheme:dark}
 html,body{height:100%;margin:0;overflow:hidden}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;
-  line-height:1.45;-webkit-text-size-adjust:100%;overscroll-behavior:none}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:15px;
+  line-height:1.5;-webkit-text-size-adjust:100%;overscroll-behavior:none;
+  font-variant-numeric:tabular-nums}
 
-/* three fixed bands: timer, header, then a scrolling stage, then the controls.
-   Nothing overlaps and the keypad never changes height, so answering does not
-   shift the layout. */
-#app{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 auto}
-#tbar{flex:none;height:2px;background:var(--border)}
-#tbar i{display:block;height:100%;width:100%;background:var(--accent)}
-#tbar i.over{background:var(--red);animation:overpulse 1.1s ease-in-out infinite}
-@keyframes overpulse{0%,100%{opacity:1}50%{opacity:.45}}
-button:focus-visible,select:focus-visible,summary:focus-visible{
-  outline:2px solid var(--accent);outline-offset:2px}
-@media (prefers-reduced-motion:reduce){
-  #situation,#prompt,#pad button{transition:none}
-  #tbar i{transition:none}
-  #tbar i.over{animation:none}}
-header{flex:none;display:flex;gap:8px;align-items:center;padding:10px var(--pad)}
+/* Phosphor grain. Two pixels of scanline at about one percent opacity: enough to
+   feel like a screen rather than a page, far too faint to cost legibility. */
+body::after{content:'';position:fixed;inset:0;z-index:9;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(233,228,216,.012) 0 1px,transparent 1px 3px)}
+
+/* Four fixed bands: gauge, header, scrolling stage, controls. The keypad never
+   changes height, so answering does not shift the layout. */
+#app{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 auto;
+  border-left:1px solid var(--line);border-right:1px solid var(--line)}
+
+/* the timer, drawn as a calibrated gauge rather than a progress bar */
+#tbar{position:relative;flex:none;height:3px;background:var(--bg-2)}
+#tbar i{display:block;height:100%;width:100%;background:var(--amber);
+  box-shadow:0 0 6px rgba(240,162,60,.5)}
+#tbar i.over{background:var(--red);box-shadow:0 0 6px rgba(224,86,74,.55);
+  animation:overpulse 1.1s ease-in-out infinite}
+#tbar::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--bg) calc(10% - 1px) 10%)}
+@keyframes overpulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+header{flex:none;display:flex;gap:8px;align-items:center;padding:9px var(--pad);
+  border-bottom:1px solid var(--line)}
 #stage{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
-  padding:0 var(--pad) 14px;-webkit-overflow-scrolling:touch}
-#ctl{flex:none;background:var(--bg-2);border-top:1px solid var(--border);
+  padding:12px var(--pad) 14px;-webkit-overflow-scrolling:touch}
+#ctl{flex:none;background:var(--bg-2);border-top:1px solid var(--line-2);
   padding-bottom:env(safe-area-inset-bottom)}
 
-select,button{font-family:inherit;font-size:15px;color:var(--text);background:var(--bg-2);
-  border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:var(--tap)}
-select{flex:1;min-width:0}
+select,button{font-family:var(--mono);font-size:13px;color:var(--text);background:transparent;
+  border:1px solid var(--line-2);border-radius:2px;padding:9px 10px;min-height:var(--tap);
+  letter-spacing:.04em}
+select{flex:1;min-width:0;text-transform:uppercase;font-size:11.5px;letter-spacing:.02em;
+  text-overflow:ellipsis}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
-.ghost{background:transparent;padding:10px;min-width:44px}
+.ghost{border-color:transparent;color:var(--text-2);padding:9px;min-width:44px;font-size:15px}
+.ghost:hover{color:var(--amber)}
+button:focus-visible,select:focus-visible,summary:focus-visible{
+  outline:1px solid var(--amber);outline-offset:2px}
 
-/* situation */
-.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 5px}
-.hand{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+/* the table */
+.lbl{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);
+  margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.lbl::after{content:'';flex:1;height:1px;background:var(--line)}
+.hand{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
 .card{
-  width:clamp(40px,11.5vw,56px);aspect-ratio:5/7;border-radius:6px;
-  background:var(--card-face);color:var(--card-ink);
+  width:clamp(38px,10.8vw,52px);aspect-ratio:5/7;border-radius:3px;
+  background:linear-gradient(180deg,var(--card-face),#ded5c0);
+  color:var(--card-ink);box-shadow:0 1px 0 rgba(0,0,0,.55);
   display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-weight:600;font-size:clamp(17px,5.5vw,24px);letter-spacing:-.02em;
+  font-family:var(--mono);font-weight:700;font-size:clamp(16px,5.1vw,22px);letter-spacing:-.03em;
 }
 .card.red{color:var(--suit-red)}
-.money{font-family:var(--mono);font-size:14px;color:var(--text-2)}
-.money b{color:var(--text);font-weight:600}
-#prompt{font-size:16px;margin:10px 0 0}
+.money{font-size:13px;color:var(--text-2);letter-spacing:.02em}
+.money b{color:var(--amber);font-weight:600}
+#prompt{font-size:14px;margin:0;padding:10px var(--pad) 0;color:var(--text);
+  line-height:1.4;border-top:1px solid var(--line)}
+#prompt::before{content:'> ';color:var(--amber)}
 
-/* the answer readout sits directly above the keypad, so the eye does not
-   travel to the top of the screen while the thumb is at the bottom */
-#ans{font-family:var(--mono);font-size:30px;line-height:1.1;padding:10px var(--pad) 6px;
-  color:var(--accent);letter-spacing:.02em;border:2px solid transparent;border-radius:8px;margin:2px var(--pad) 0}
-#ans .unit{font-size:16px;color:var(--text-2)}
-#ans.empty{color:var(--muted)}
-#ans.ok{border-color:var(--green)}
-#ans .big{font-size:30px;line-height:1.1}
-#ans .big .mark{font-weight:700}
+/* the answer readout, directly above the keypad because that is where the eye
+   already is when the thumb presses Check */
+#ans{font-size:29px;line-height:1.15;padding:6px var(--pad) 8px;
+  color:var(--amber);letter-spacing:.02em;border-top:1px solid transparent;
+  border-bottom:1px solid var(--line);min-height:64px}
+#ans .unit{font-size:15px;color:var(--text-2)}
+#ans u{text-decoration:none;border-bottom:2px solid var(--amber)}
+#ans.empty::after{content:'_';color:var(--amber);animation:blink 1.05s step-end infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+#ans.ok{border-top-color:var(--green);background:linear-gradient(180deg,rgba(87,180,108,.07),transparent)}
+#ans.no{border-top-color:var(--red);background:linear-gradient(180deg,rgba(224,86,74,.07),transparent)}
+#ans .big{font-size:29px;line-height:1.15;display:block}
+#ans .big .mark{font-weight:700;margin-right:6px}
 #ans.ok .mark{color:var(--green)} #ans.no .mark{color:var(--red)}
-#ans .sub{display:block;margin-top:3px;font-size:13px;color:var(--text-2);letter-spacing:0}
+#ans .sub{display:block;margin-top:5px;font-size:12px;color:var(--text-2);letter-spacing:.02em}
 #ans .sub b{color:var(--text)} #ans .sub .slow{color:var(--red)}
-#ans.no{border-color:var(--red)}
-#ans u{text-decoration:none;border-bottom:3px solid var(--accent)}
 
-/* feedback, in three tiers */
-#fb{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--surface);
-  border:1px solid var(--border);font-size:15px;display:none}
+/* feedback */
+#fb{margin-top:14px;padding:11px 12px;border-radius:2px;background:var(--surface);
+  border:1px solid var(--line);border-left:2px solid var(--amber-dim);font-size:13px;display:none}
 #fb.on{display:block}
-#fb .verdict{font-family:var(--mono);font-size:13.5px;color:var(--text-2)}
-#fb .verdict b{color:var(--text)}
-#fb .ok{color:var(--green);font-weight:600}
-#fb .no{color:var(--red);font-weight:600}
-#fb details{margin-top:9px;border-top:1px solid var(--border);padding-top:8px}
-#fb summary{cursor:pointer;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--accent);list-style:none}
+#fb .ok{color:var(--green)} #fb .no{color:var(--red)}
+#fb code{color:var(--amber);font-size:12.5px}
+#fb .method{color:var(--text-2);line-height:1.62}
+#fb details{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
+#fb summary{cursor:pointer;font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--amber);list-style:none}
 #fb summary::-webkit-details-marker{display:none}
-#fb summary::before{content:'\25B8  '}
-#fb details[open] summary::before{content:'\25BE  '}
-#fb .method{font-size:14px;color:var(--text-2);line-height:1.5;margin-top:7px}
-#fb code{font-family:var(--mono);color:var(--text);font-size:12.5px}
+#fb summary::before{content:'+ '}
+#fb details[open] summary::before{content:'- '}
 
-/* equity bar, with a marker for the true value and one for your estimate */
-.barwrap{position:relative;margin:9px 0 4px;padding-top:13px}
-.bar{display:flex;height:20px;border-radius:4px;overflow:hidden;
-  font-family:var(--mono);font-size:10.5px;line-height:20px;text-align:center}
+/* equity bar */
+.barwrap{position:relative;margin:11px 0 4px;padding-top:13px}
+.bar{display:flex;height:18px;border-radius:2px;overflow:hidden;
+  font-size:9.5px;line-height:18px;text-align:center;letter-spacing:.04em}
 .bar span{min-width:0;overflow:hidden;white-space:nowrap}
-.bar .w{background:#1f6f4e;color:#dff5e9}
-.bar .t{background:#6e7681;color:#0d1117}
-.bar .l{background:#7d2a28;color:#fadbd9}
-.pip{position:absolute;top:0;width:0;height:33px;border-left:2px solid var(--text);
-  font-family:var(--mono);font-size:10px;white-space:nowrap}
-.pip b{position:absolute;top:-1px;left:3px;color:var(--text);font-weight:600}
-.pip.you{border-left-style:dashed;border-left-color:var(--accent)}
-.pip.you b{color:var(--accent);left:-32px;text-align:right;width:29px}
-.barkey{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.bar .w{background:#2e6b40;color:#d6ecdc}
+.bar .t{background:#4a4740;color:#0d0e10}
+.bar .l{background:#6d2a24;color:#f2d8d5}
+.pip{position:absolute;top:0;width:0;height:31px;border-left:1px solid var(--text);
+  font-size:9.5px;white-space:nowrap}
+.pip b{position:absolute;top:-1px;left:4px;color:var(--text);font-weight:600}
+.pip.you{border-left-style:dashed;border-left-color:var(--amber)}
+.pip.you b{color:var(--amber);left:-32px;text-align:right;width:29px}
+.barkey{font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:8px}
 
 /* out badges */
 .outs{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0}
-.out{font-family:var(--mono);font-size:12.5px;padding:2px 6px;border-radius:4px;
-  background:#16301f;color:#7ee2a8;border:1px solid #1f6f4e}
-.out.dead{background:#301718;color:#f0a7a4;border-color:#7d2a28;text-decoration:line-through}
-.out.red{color:#a8e6c2}
-.out.dead.red{color:#ffc4c0}
+.out{font-size:12px;padding:2px 6px;border-radius:2px;
+  background:rgba(87,180,108,.10);color:#8fd39f;border:1px solid #2e6b40}
+.out.red{color:#f0b9a8}
+.out.dead{background:rgba(224,86,74,.10);color:#e8a49c;border-color:#6d2a24;
+  text-decoration:line-through}
+.out.dead.red{color:#ffd0c4}
 
-/* about panel */
-#about{display:none;margin-top:12px;padding:11px 13px;border-radius:8px;
-  background:var(--bg-2);border:1px solid var(--border);font-size:14px;line-height:1.5}
+/* what this drill trains */
+#about{display:none;margin-top:12px;padding:12px 13px;border-radius:2px;
+  background:var(--bg-2);border:1px solid var(--line);border-left:2px solid var(--amber-dim);
+  font-size:13px;line-height:1.62}
 #about.on{display:block}
-#about h3{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
-#about p{margin:0 0 8px;color:var(--text-2)}
+#about h3{margin:0 0 8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber)}
+#about p{margin:0 0 9px;color:var(--text-2)}
 #about p:last-child{margin:0}
 #about b{color:var(--text)}
-#about .eg{padding:8px 10px;border-left:2px solid var(--border);background:var(--bg);border-radius:4px}
+#about .eg{padding:9px 10px;border-left:1px solid var(--line-2);background:var(--bg);border-radius:2px}
 
-/* keypad: fixed height in every state, so nothing moves when you answer */
-#pad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,1fr);
-  gap:6px;padding:6px var(--pad) 8px;height:var(--padh)}
-#pad button{font-family:var(--mono);font-size:19px;min-height:0;padding:0}
-#pad .go{background:var(--accent);color:#04101f;border-color:var(--accent);font-weight:700}
-#pad .wide{grid-column:span 3;font-family:var(--sans);font-size:16px}
-#pad .fill{grid-column:span 3;grid-row:span 5;font-family:var(--sans);font-size:18px}
+/* keypad */
+#pad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(4,1fr);
+  gap:5px;padding:6px var(--pad) 8px;height:var(--padh)}
+#pad.tall{grid-template-rows:repeat(5,1fr);height:var(--padh-tall)}
+#pad button{font-size:19px;min-height:0;padding:0;border-color:var(--line);
+  background:var(--bg);letter-spacing:0}
+#pad button:hover{border-color:var(--line-2)}
+#pad .go{background:var(--amber-ghost);color:var(--amber);border-color:var(--amber-dim);
+  font-weight:700;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
+#pad .wide{grid-column:span 3;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
+#pad .fill{grid-column:span 3;grid-row:span 4;font-size:15px;letter-spacing:.14em;text-transform:uppercase}
+#pad.tall .fill{grid-row:span 5}
 #pad.choice{grid-template-columns:repeat(2,1fr);grid-template-rows:1fr}
-#pad.choice button{font-family:var(--sans);font-size:18px}
+#pad.choice button{font-size:16px;letter-spacing:.1em;text-transform:uppercase}
+#pad button:active{transform:scale(.97);background:var(--amber-ghost);border-color:var(--amber-dim)}
+#pad button{transition:transform 40ms ease-out,background 40ms ease-out,border-color 90ms ease-out}
 
 /* stats */
-#stats{display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+#stats{display:none;margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 #stats.on{display:block}
-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px}
-th,td{text-align:right;padding:4px 3px;border-bottom:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:right;padding:5px 4px;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}
-th{color:var(--muted);font-weight:500}
-.ver{margin-top:9px;font-size:11px;color:var(--muted);font-family:var(--mono)}
-pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.5}
+th{color:var(--muted);font-weight:500;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase}
+.ver{margin-top:10px;font-size:10px;color:var(--muted);letter-spacing:.1em}
+pre{font-size:11.5px;white-space:pre-wrap;line-height:1.55;color:var(--text-2)}
 .dim{color:var(--muted)}
 
-/* motion: enough to confirm a tap and to signal a new hand, nothing more */
-#situation,#prompt{transition:opacity 90ms ease-out,transform 90ms ease-out}
-.fade{opacity:0;transform:translateY(5px)}
-#pad button:active{transform:scale(.96);background:var(--surface)}
-#pad button{transition:transform 40ms ease-out,background 40ms ease-out}
-#ans{transition:border-color 220ms ease-out}
-#tbar i{transition:width 0s linear}
-@media (prefers-reduced-motion:reduce){
-  #situation,#prompt,#pad button,#ans,#tbar i{transition:none}
-  .fade{opacity:1;transform:none}
+/* short screens: the drill matters more than the ornament */
+@media (max-height:700px){
+  .card{width:clamp(33px,9.2vw,44px)}
+  .hand{margin-bottom:8px}
+  .lbl{margin-bottom:4px}
+  #stage{padding-top:9px}
+  #ans{font-size:25px}
+  #ans .big{font-size:25px}
 }
+
+/* motion: only enough to signal that the state changed */
+#situation,#prompt{transition:opacity 90ms ease-out}
+.fade{opacity:.12}
+@media (prefers-reduced-motion:reduce){
+  #situation,#prompt,#pad button{transition:none}
+  #tbar i{transition:none}
+  #tbar i.over,#ans.empty::after{animation:none}}
 </style>
 </head>
 <body>
@@ -181,12 +218,12 @@ pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.5}
   <main id="stage">
     <div id="about"></div>
     <div id="situation"></div>
-    <div id="prompt"></div>
     <div id="fb"></div>
     <div id="stats"></div>
   </main>
   <footer id="ctl">
-    <div id="ans" class="empty">&mdash;</div>
+    <div id="prompt"></div>
+    <div id="ans" class="empty"></div>
     <div id="pad"></div>
   </footer>
 </div>
@@ -197,7 +234,7 @@ pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;line-height:1.5}
    Poker Odds Drill - engine
    Cards are ints 0..51:  rank = c>>2  (0=deuce .. 12=ace),  suit = c&3
    ============================================================ */
-var VERSION = '0.4.0';
+var VERSION = '0.5.0';
 var RANKS = '23456789TJQKA';
 var SUITS = ['♠','♥','♦','♣'];   // s h d c ; 1 and 2 are red
 
@@ -1150,13 +1187,13 @@ function draw(){
     (S.qs.length>1?' <span class="dim">('+(S.qi+1)+' of '+S.qs.length+')</span>':'');
   var a=$('ans');
   if(S.phase==='ask'){
-    if(q.kind==='choice'){ a.className=S.choice?'':'empty'; a.innerHTML=S.choice||'&mdash;'; }
+    if(q.kind==='choice'){ a.className=S.choice?'':'empty'; a.innerHTML=S.choice||''; }
     else if(q.kind==='market'){
       var b=S.mkt.bid||'&middot;&middot;',k=S.mkt.ask||'&middot;&middot;';
       a.className=(S.mkt.bid||S.mkt.ask)?'':'empty';
       a.innerHTML=(S.mkt.side==='bid'?'<u>'+b+'</u>':b)+' <span class="unit">/</span> '+(S.mkt.side==='ask'?'<u>'+k+'</u>':k);
     }
-    else { a.className=S.typed?'':'empty'; a.innerHTML=(S.typed||'&mdash;')+(S.typed&&q.unit?'<span class="unit">'+q.unit+'</span>':''); }
+    else { a.className=S.typed?'':'empty'; a.innerHTML=(S.typed||'')+(S.typed&&q.unit?'<span class="unit">'+q.unit+'</span>':''); }
     $('fb').className='';
   }
   pad();
@@ -1193,8 +1230,11 @@ function gradeNow(){
   var truth=(q.kind==='choice')?q.answer:(q.answer+q.unit);
   var sub='you <b>'+user+(q.kind==='int'?q.unit:'')+'</b>';
   if(q.kind==='int'){
-    var e=user-q.answer;
-    sub+=' &middot; <b>'+(e>0?'+':'')+e+q.unit+'</b> of &plusmn;'+q.tol;
+    /* answers are rounded to a tenth, so a raw subtraction leaks float noise
+       such as +0.3999999999999986 straight into the readout */
+    var e=Math.round((user-q.answer)*10)/10;
+    sub+=' &middot; <b>'+(e>0?'+':'')+e+q.unit+'</b>';
+    if(q.tol>0) sub+=' of &plusmn;'+q.tol;   /* exact drills have no band to quote */
   }
   if(extra) sub+=' &middot;'+extra;
   sub+=' &middot; <span class="'+(slow?'slow':'')+'">'+S.secs.toFixed(1)+'s'+(slow?' / '+tgt+'s':'')+'</span>';
@@ -1223,7 +1263,9 @@ function gradeNow(){
 
   $('fb').innerHTML=h; $('fb').className='on';
   S.phase='graded'; pad();
-  if(!ok||slow) $('fb').scrollIntoView({block:'nearest'});
+  /* the equity picture is the payoff, so bring it into view every time,
+     not only when the answer was wrong or slow */
+  $('fb').scrollIntoView({block:'nearest'});
 }
 
 function advance(){
@@ -1235,18 +1277,31 @@ function advance(){
 }
 function pad(){
   var q=S.qs[S.qi],p=$('pad'),h='';
+  /* The market drill needs a slash as well as a backspace, so it is the one
+     layout that still wants five rows. Its height is held across both the ask
+     and graded phases so nothing shifts underneath the thumb. */
+  var tall = (q && q.kind==='market');
   if(S.phase==='graded'){
-    p.className='';
+    p.className=tall?'tall':'';
     p.innerHTML='<button class="go fill" data-k="next">'+(S.qi<S.qs.length-1?'Next question':'Next hand')+'</button>';
   } else if(q.kind==='choice'){
     p.className='choice';
     p.innerHTML=q.choices.map(function(c){ return '<button data-c="'+c+'">'+c+'</button>'; }).join('');
-  } else {
-    p.className='';
-    ['1','2','3','4','5','6','7','8','9', q.kind==='market'?'/':'-', '0','⌫'].forEach(function(k){
+  } else if(tall){
+    p.className='tall';
+    ['1','2','3','4','5','6','7','8','9','/','0','⌫'].forEach(function(k){
       h+='<button data-k="'+k+'">'+k+'</button>';
     });
     h+='<button class="go wide" data-k="ok">Check</button>';
+    p.innerHTML=h;
+  } else {
+    /* 1-9, then backspace, zero, Check in the corner, calculator style. The
+       minus key is gone: no drill can produce a negative answer any more. */
+    p.className='';
+    ['1','2','3','4','5','6','7','8','9','⌫','0'].forEach(function(k){
+      h+='<button data-k="'+k+'">'+k+'</button>';
+    });
+    h+='<button class="go" data-k="ok">Check</button>';
     p.innerHTML=h;
   }
   Array.prototype.forEach.call(p.querySelectorAll('button'),function(b){
